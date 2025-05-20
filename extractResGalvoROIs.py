@@ -96,10 +96,16 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTifFN):
     tif.imwrite(annTifFN,annTiff)
 
     return annTiff
+
 def register_res_galvo_trials(expmtPath, regParams):
     trialPaths = glob.glob(expmtPath+'/TSeries*')
+    zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
+    zSeriesPathGCaMP = glob.glob(expmtPath+'/ZSeries*/*Ch2*.tif')[0]
+    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xslx')[0])
+    slices = expmtNotes['slice_label'].values
     trialCounter = 1
     for trial in trialPaths:
+        trialIDX = trialCounter-1
         trialCycles_ch1 = glob.glob(trial+'/TSeries*Ch1*.tif')
         trialCycles_ch2 = glob.glob(trial+'/TSeries*Ch2*.tif')
         registeredTrials = glob.glob(trial+'/rT*_C*_ch*.tif')
@@ -114,6 +120,29 @@ def register_res_galvo_trials(expmtPath, regParams):
                 correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
                 registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
                 correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>60000, 0, registeredCycle_ch2[:])
+
+                #make annotation tiffs here
+                if expmtNotes['lung_label'].values[0] == 'WGA594' and cycleIDX == 0:
+                    mIM = np.nanmean(cycleTiff_ch2, axis=0)
+                    wgaZStack = tif.imread(zSeriesPathWGA)
+                    gcampZStack = tif.imread(zSeriesPathGCaMP)
+                    trialSlice = slices[trialIDX]
+                    wgaSlice = wgaZStack[trialSlice,:,:]
+                    gcampSlice = gcampZStack[trialSlice,:,:]
+                    shifts = generate_shifts(mIM, gcampSlice, trial)
+                    if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    else:
+                        os.mkdir(expmtPath+'/segmentations/WGA_manual/')
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTiffFN)
+                elif expmtNotes['lung_label'].values[0] == 'WGATR':
+                    if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    else:
+                        os.mkdir(expmtPath+'/segmentations/WGA_manual/')
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    tif.imwrite(annTiffFN, mIM)
 
                 tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
                 tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
@@ -179,7 +208,7 @@ def extract_res_roi_traces(expmtPath):
             print('No ROIs segmented yet')
     return dataDict
     
-
+#%%
 if __name__=='__main__':
     dataFrom = [
         'U:/expmtRecords/Lucas*',
