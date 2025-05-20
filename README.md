@@ -11,7 +11,6 @@ Processing pipeline that utilizes jnormcorre and cellpose to compress multi phot
 3.) Once this extract___Galvo.py has been run, you will need to manually curate ROIs absed on data and label you used (currently supporting labeling using WGATR or WGA594)
 - this will eventually be automated using cellpose once new model is trained
 - run cellpose in a seperate instance (for now.... this part will be better integrated into the future)
-- currently need to make mean images to segment cells manually using FIJI -- will fix this in future
 - save segmentations made by cellpose as AVG_rT#_C#_ch#_slice#_seg.npy
 
 4.) run extractResGalvoROIs.py again -- the logic will funnel analysis to compressing data into an expmtTraces.pkl
