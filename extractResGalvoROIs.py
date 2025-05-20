@@ -101,7 +101,7 @@ def register_res_galvo_trials(expmtPath, regParams):
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
     zSeriesPathGCaMP = glob.glob(expmtPath+'/ZSeries*/*Ch2*.tif')[0]
-    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xslx')[0])
+    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
     slices = expmtNotes['slice_label'].values
     trialCounter = 1
     for trial in trialPaths:
@@ -151,10 +151,11 @@ def register_res_galvo_trials(expmtPath, regParams):
         trialCounter+=1
 
 def extract_res_roi_traces(expmtPath):
+    print(expmt)
     pad = 25 #pad for roi windows
     #currently only for texas red labeling
     trialPaths = glob.glob(expmtPath+'/TSeries*')
-    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xlsx')[0])
+    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
     slicePerTrial = expmtNotes['slice_label'].values
     trialCounter = 0
     dataDict = {}
@@ -230,9 +231,12 @@ if __name__=='__main__':
     }
 
     for expmt in expmtRecords:
+        
         register_res_galvo_trials(expmt, regParams)
         #insert cellpose command here
         dataDict = extract_res_roi_traces(expmt)
         if dataDict:
             with open(expmt+'/expmtTraces.pkl', 'wb') as f:
                 pickle.dump(dataDict, f)
+
+# %%
