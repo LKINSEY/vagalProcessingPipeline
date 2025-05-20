@@ -1,5 +1,7 @@
 # vagalProcessingPipeline
 Processing pipeline that utilizes jnormcorre and cellpose to compress multi photon calcium imaging experiments of the vagal ganglia
+
+
 1.) After experiment is finished, place experiment in folder structure as shown - generate expmtNotes_yymmdd_####.xlsx file according to notes made from experiment
 - expmtNotes will be automatically generated in the future
 
