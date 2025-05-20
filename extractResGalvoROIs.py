@@ -101,7 +101,11 @@ def register_res_galvo_trials(expmtPath, regParams):
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
     zSeriesPathGCaMP = glob.glob(expmtPath+'/ZSeries*/*Ch2*.tif')[0]
-    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
+    try:
+        expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
+    except IndexError:
+        print('Need to create expmtNotes for experiment! exiting...')
+        return
     slices = expmtNotes['slice_label'].values
     trialCounter = 1
     for trial in trialPaths:
@@ -154,8 +158,12 @@ def extract_res_roi_traces(expmtPath):
     print(expmt)
     pad = 25 #pad for roi windows
     #currently only for texas red labeling
-    trialPaths = glob.glob(expmtPath+'/TSeries*')
-    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
+    trialPaths = glob.glob(expmtPath+'/TSeries*')    
+    try:
+        expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
+    except IndexError:
+        print('Need to create expmtNotes for experiment! exiting...')
+        return
     slicePerTrial = expmtNotes['slice_label'].values
     trialCounter = 0
     dataDict = {}
