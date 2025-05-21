@@ -7,6 +7,11 @@ cd .\path\to\repo
 conda create --name myEnv --file requirements.txt
 conda activate myEnv
 
+- additionally
+pip install git+https://github.com/apasarkar/jnormcorre.git
+python -m pip install cellpose
+(may need to download additional dependencies found here https://github.com/MouseLand/cellpose) -- this is also why env should be python=3.10
+
 
 #How To:
 
@@ -26,6 +31,12 @@ conda activate myEnv
 5.) once pickle is created, run readResGalvoTraces.py -- this will generate summary plots of your experiment in expmtName/figures directory
 
 
+# References:
 
+maskNMF: A denoise-sparsen-detect approach for extracting neural signals from dense imaging data. (2023). A. Pasarkar*, I. Kinsella, P. Zhou, M. Wu, D. Pan, J.L. Fan, Z. Wang, L. Abdeladim, D.S. Peterka, H. Adesnik, N. Ji, L. Paninski.
+
+Stringer, C., Wang, T., Michaelos, M., & Pachitariu, M. (2021). Cellpose: a generalist algorithm for cellular segmentation. Nature methods, 18(1), 100-106
+
+Pachitariu, M. & Stringer, C. (2022). Cellpose 2.0: how to train your own model. Nature methods, 1-8.
 
 
