@@ -2,9 +2,13 @@
 Processing pipeline that utilizes jnormcorre and cellpose to compress multi photon calcium imaging experiments of the vagal ganglia
 
 # Installation:
+
 git clone https://github.com/LKINSEY/vagalProcessingPipeline.git
+
 cd .\path\to\repo
-conda create --name myEnv --file requirements.txt
+
+conda create --name myEnv
+
 conda activate myEnv
 
 - additionally
