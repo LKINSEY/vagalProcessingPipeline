@@ -137,14 +137,16 @@ def register_res_galvo_trials(expmtPath, regParams):
                     if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
                         annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
                     else:
-                        os.mkdir(expmtPath+'/segmentations/WGA_manual/')
+                        os.mkdir(expmtPath+'/segmentations/')
+                        os.mkdir(expmtPath+'/segmentations/WGA_manual')
                         annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
                     _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTiffFN)
                 elif expmtNotes['lung_label'].values[0] == 'WGATR':
                     if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
                         annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
                     else:
-                        os.mkdir(expmtPath+'/segmentations/WGA_manual/')
+                        os.mkdir(expmtPath+'/segmentations/')
+                        os.mkdir(expmtPath+'/segmentations/WGA_manual')
                         annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
                     tif.imwrite(annTiffFN, mIM)
 
