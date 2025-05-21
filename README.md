@@ -1,6 +1,14 @@
 # vagalProcessingPipeline
 Processing pipeline that utilizes jnormcorre and cellpose to compress multi photon calcium imaging experiments of the vagal ganglia
 
+# Installation:
+git clone https://github.com/LKINSEY/vagalProcessingPipeline.git
+cd .\path\to\repo
+conda create --name myEnv --file requirements.txt
+conda activate myEnv
+
+
+#How To:
 
 1.) After experiment is finished, place experiment in folder structure as shown - generate expmtNotes_yymmdd_####.xlsx file according to notes made from experiment
 - expmtNotes will be automatically generated in the future
