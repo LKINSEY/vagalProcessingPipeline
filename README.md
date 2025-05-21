@@ -8,12 +8,16 @@ conda create --name myEnv --file requirements.txt
 conda activate myEnv
 
 - additionally
+
 pip install git+https://github.com/apasarkar/jnormcorre.git
+
 python -m pip install cellpose
+
 (may need to download additional dependencies found here https://github.com/MouseLand/cellpose) -- this is also why env should be python=3.10
 
 
-#How To:
+
+# How To:
 
 1.) After experiment is finished, place experiment in folder structure as shown - generate expmtNotes_yymmdd_####.xlsx file according to notes made from experiment
 - expmtNotes will be automatically generated in the future
