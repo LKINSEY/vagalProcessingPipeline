@@ -13,7 +13,7 @@ conda activate dataAnalysis
 
 pip install git+https://github.com/apasarkar/jnormcorre.git
 
-python -m pip install cellpose
+python -m pip install cellpose[gui]
 
 pip install openpyxl
 ```
