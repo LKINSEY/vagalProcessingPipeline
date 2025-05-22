@@ -11,7 +11,6 @@ conda create --name dataAnalysis python=3.10
 
 conda activate dataAnalysis
 
-pip install -r requirements.txt
 
 pip install git+https://github.com/apasarkar/jnormcorre.git
 

@@ -1,6 +1,0 @@
-# $ conda create --name <env> --file <this file>
-# created-by: conda 25.1.1
-# platform: win-64
-# This file may be used to create an environment using:
-tifffile==2023.7.10
-matplotlib==3.7.1
