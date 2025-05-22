@@ -125,7 +125,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                 cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
 
                 #make annotation tiffs here
-                if expmtNotes['lung_label'].values[0] == 'WGA594' and cycleIDX == 0:
+                if expmtNotes['lung_label'].values[0] == 'WGA594':
                     registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
                     correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
                     registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
@@ -147,7 +147,8 @@ def register_res_galvo_trials(expmtPath, regParams):
                     #resizing so segmentation masks match zstack resolution
                     correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                     correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
-                    _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTiffFN, resolution)
+                    if cycleIDX == 0:
+                        _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTiffFN, resolution)
                 elif expmtNotes['lung_label'].values[0] == 'WGATR':
                     registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
                     correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
