@@ -145,8 +145,8 @@ def register_res_galvo_trials(expmtPath, regParams):
                         os.mkdir(expmtPath+'/segmentations/WGA_manual')
                         annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
                     #resizing so segmentation masks match zstack resolution
-                    correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
-                    correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                    correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                    correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                     _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTiffFN, resolution)
                 elif expmtNotes['lung_label'].values[0] == 'WGATR':
                     registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
