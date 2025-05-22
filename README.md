@@ -33,6 +33,7 @@ pip install openpyxl
 - this will eventually be automated using cellpose once new model is trained
 - run cellpose in a seperate instance (for now.... this part will be better integrated into the future)
 - save segmentations made by cellpose as AVG_rT#_C#_ch#_slice#_seg.npy
+- if using WGA594, cellpose should be run as Zstack version, and annotations should be made on slice 0
 
 4.) run extractResGalvoROIs.py again -- the logic will funnel analysis to compressing data into an expmtTraces.pkl
 
