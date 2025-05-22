@@ -2,7 +2,7 @@
 import tifffile as tif
 import numpy as np
 import matplotlib.pyplot as plt
-import os,cv2, glob, pickle
+import os, glob, pickle
 import jnormcorre
 import jnormcorre.motion_correction
 import jnormcorre.utils.registrationarrays as registrationarrays

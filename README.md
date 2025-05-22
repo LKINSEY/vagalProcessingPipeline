@@ -2,21 +2,21 @@
 Processing pipeline that utilizes jnormcorre and cellpose to compress multi photon calcium imaging experiments of the vagal ganglia
 
 # Installation:
-
+```
 git clone https://github.com/LKINSEY/vagalProcessingPipeline.git
 
 cd .\path\to\repo
 
-conda create --name myEnv
+conda create --name dataAnalysis python=3.10
 
-conda activate myEnv
+conda activate dataAnalysis
 
-- additionally
+pip install -r requirements.txt
 
 pip install git+https://github.com/apasarkar/jnormcorre.git
 
 python -m pip install cellpose
-
+```
 (may need to download additional dependencies found here https://github.com/MouseLand/cellpose) -- this is also why env should be python=3.10
 
 
