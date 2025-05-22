@@ -3,8 +3,4 @@
 # platform: win-64
 # This file may be used to create an environment using:
 tifffile==2023.7.10
-numpy==1.24.2
-pandas==1.5.3
 matplotlib==3.7.1
-scikit-image==0.20.0
-scipy==1.10.1
