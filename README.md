@@ -11,10 +11,11 @@ conda create --name dataAnalysis python=3.10
 
 conda activate dataAnalysis
 
-
 pip install git+https://github.com/apasarkar/jnormcorre.git
 
 python -m pip install cellpose
+
+pip install openpyxl
 ```
 (may need to download additional dependencies found here https://github.com/MouseLand/cellpose) -- this is also why env should be python=3.10
 
