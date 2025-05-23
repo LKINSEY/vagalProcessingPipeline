@@ -2,7 +2,7 @@
 import tifffile as tif
 import numpy as np
 import pandas as pd
-import os, glob, pickle
+import os, glob, pickle, cv2
 import matplotlib.pyplot as plt
 from skimage.transform import resize
 from scipy.signal import fftconvolve
@@ -51,37 +51,46 @@ def register_tSeries(rawData, regParams, compareRaw=False):
 
     return motionCorrectedData, prepQuality
 
-def generate_shifts(mIM, gcampSlice, trial):
-    shiftTolerance = 100
-    correlation = fftconvolve(gcampSlice, mIM[::-1, ::-1], mode='same')
-    yShift, xShift = np.unravel_index(np.argmax(correlation), correlation.shape)
-    centerY, centerX = np.array(correlation.shape) // 2
-    dy = centerY - yShift
-    dx = centerX - xShift
-    if dx > shiftTolerance or dy > shiftTolerance:
-        dx = 0
-        dy = 0 
-        plt.figure()
-        plt.imshow(correlation)
-        plt.show()
-        plt.title(f'Trial {trial+1} exceeds shift tolerance! Review Manually!')
-        plt.figure()
-        plt.imshow(mIM)
-        plt.title(f'Trial {trial+1} mIM')
-        plt.show()
-        plt.figure()
-        plt.imshow(gcampSlice)
-        plt.title(f'Trial {trial+1} slice')
-        plt.show()
-    return (dx,dy)
+'''
+on hold...
 
-def make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTifFN, resolution):
+
+# def generate_shifts(mIM, gcampSlice, trial):
+#     shiftTolerance = 100
+#     correlation = fftconvolve(gcampSlice, mIM[::-1, ::-1], mode='same')
+#     yShift, xShift = np.unravel_index(np.argmax(correlation), correlation.shape)
+#     centerY, centerX = np.array(correlation.shape) // 2
+#     dy = centerY - yShift
+#     dx = centerX - xShift
+#     if dx > shiftTolerance or dy > shiftTolerance:
+#         dx = 0
+#         dy = 0 
+#         plt.figure()
+#         plt.imshow(correlation)
+#         plt.show()
+#         plt.title(f'Trial {trial+1} exceeds shift tolerance! Review Manually!')
+#         plt.figure()
+#         plt.imshow(mIM)
+#         plt.title(f'Trial {trial+1} mIM')
+#         plt.show()
+#         plt.figure()
+#         plt.imshow(gcampSlice)
+#         plt.title(f'Trial {trial+1} slice')
+#         plt.show()
+#     return (dx,dy)
+'''
+
+def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
-    #need to resize mIM to be same dimensions as slice images
+    #zstack will always be at 2x
+
     if resolution[0] != mIM.shape[0]:
         mIM = resize(mIM, (resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
 
-    #padd so we can roll
+    '''
+
+    using cv2 since there is a possibility of scaling issues
+
     padding = (
         (np.abs(shifts[0])+25,np.abs(shifts[0])+25),#x shifts
         (np.abs(shifts[1])+25,np.abs(shifts[1])+25) #y shifts
@@ -90,15 +99,33 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTifFN, resolution)
     paddedWGASlice = np.pad(wgaSlice, padding, mode='constant', constant_values=0)
     paddedGCaMPSlice = np.pad(gcampSlice, padding, mode='constant', constant_values=0)
 
-    #apply the roll to the trial to match zstack slices
     correctedIM = np.roll(paddedIM, (-shifts[1],-shifts[0]), axis=(0,1))   
-    
-    #make stack
+
     annTiff = np.stack((paddedWGASlice, paddedGCaMPSlice, correctedIM), axis=0)
+    '''
 
-    #save stack
+    gcampSlice = cv2.normalize(gcampSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    mIM = cv2.normalize(mIM, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    
+    akaze = cv2.AKAZE_create()
+    kpA, desA = akaze.detectAndCompute(gcampSlice, None)
+    kpB, desB = akaze.detectAndCompute(mIM, None)
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(desA, desB)
+    if len(matches) > threshold:
+        matches = sorted(matches, key=lambda x: x.distance)
+        ptsA = np.float32([kpA[m.queryIdx].pt for m in matches]).reshape(-1,1,2)
+        ptsB = np.float32([kpB[m.trainIdx].pt for m in matches]).reshape(-1,1,2)
+        matrix, mask = cv2.estimateAffinePartial2D(ptsA,ptsB)
+        alignedgCaMPStack = cv2.warpAffine(gcampSlice, matrix, (mIM.shape[1], mIM.shape[0]))
+        alignedgWGAStack = cv2.warpAffine(wgaSlice, matrix, (mIM.shape[1], mIM.shape[0]))
+    #case 1, affine transformation
+    else:
+        print('Case 2 Alignment ... work in progress')
+    #case 2 template matching
+    annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
     tif.imwrite(annTifFN,annTiff)
-
     return annTiff
 
 def register_res_galvo_trials(expmtPath, regParams):
