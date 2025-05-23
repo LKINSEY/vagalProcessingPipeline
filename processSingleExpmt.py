@@ -47,11 +47,6 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
  
     wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     mIM = cv2.normalize(mIM, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    print('wtf is going on')
-    tif.imwrite('C:/temp/wild1.tif', mIM)
-    tif.imwrite('C:/temp/wild2.tif', gCaMPSlice)
-    tif.imwrite('C:/temp/wild3.tif',wgaSlice)
-    print('do the thing')
     akaze = cv2.AKAZE_create()
     kpA, desA = akaze.detectAndCompute(gcampSlice, None)
     kpB, desB = akaze.detectAndCompute(mIM, None)
@@ -98,7 +93,7 @@ for expmt in expmtList:
 
         result = make_annotation_tif(mIM, gCaMPSlice, wgaSlice, 5, annTiffFN, wgaSlice.shape)
 
-print('wtf')
+
 
 
 # %%
