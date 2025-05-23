@@ -210,7 +210,7 @@ def extract_res_roi_traces(expmtPath):
     slicePerTrial = expmtNotes['slice_label'].values
     trialCounter = 0
     dataDict = {}
-    numSegmentations = glob.glob(expmtPath+f'/segmentations/WGA_manual/*rT*C*Ch*.npy')
+    numSegmentations = glob.glob(expmtPath+f'/segmentations/WGA_manual/*.npy')
     if os.path.exists(expmt+'/expmtTraces.pkl'):
         print('Traces Already Extracted')
         return None
@@ -220,10 +220,12 @@ def extract_res_roi_traces(expmtPath):
                 registeredTiffs_ch1 = glob.glob(trial+'/rT*C*Ch1.tif')
                 registeredTiffs_ch2 = glob.glob(trial+'/rT*C*Ch2.tif')
                 segmentationUsed = slicePerTrial[trialCounter]
-                masksNPY = glob.glob(expmtPath+f'/segmentations/WGA_manual/*rT*C*Ch*slice{segmentationUsed}_seg.npy')
+                masksNPY = glob.glob(expmtPath+f'/segmentations/WGA_manual/*slice{segmentationUsed}_seg.npy')
                 print(masksNPY)
                 segmentationLoaded = np.load(masksNPY[0], allow_pickle=True).item()
                 masks = segmentationLoaded['masks']
+                if len(masks.shape) == 3:
+                    masks = masks[1,:,:]
                 rgbIM = np.zeros((3, masks.shape[0], masks.shape[1]))
                 rgbIM[1,:,:] = masks
                 rois = np.unique(masks)[1:]
