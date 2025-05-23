@@ -83,6 +83,8 @@ on hold...
 def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
     #zstack will always be at 2x
+    low, high = np.percentile(gcampSlice, [0.4, 99.6]) #adjust contrast for best outcome
+    gcampSlice = np.clip((gcampSlice - low) / (high - low), 0, 1) * 255
 
     if resolution[0] != mIM.shape[0]:
         mIM = resize(mIM, (resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
@@ -105,25 +107,25 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
     '''
 
     gcampSlice = cv2.normalize(gcampSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+ 
     wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     mIM = cv2.normalize(mIM, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    
     akaze = cv2.AKAZE_create()
     kpA, desA = akaze.detectAndCompute(gcampSlice, None)
     kpB, desB = akaze.detectAndCompute(mIM, None)
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
     matches = bf.match(desA, desB)
     if len(matches) > threshold:
+        #case 1, affine transformation
         matches = sorted(matches, key=lambda x: x.distance)
         ptsA = np.float32([kpA[m.queryIdx].pt for m in matches]).reshape(-1,1,2)
         ptsB = np.float32([kpB[m.trainIdx].pt for m in matches]).reshape(-1,1,2)
         matrix, mask = cv2.estimateAffinePartial2D(ptsA,ptsB)
         alignedgCaMPStack = cv2.warpAffine(gcampSlice, matrix, (mIM.shape[1], mIM.shape[0]))
         alignedgWGAStack = cv2.warpAffine(wgaSlice, matrix, (mIM.shape[1], mIM.shape[0]))
-    #case 1, affine transformation
     else:
         print('Case 2 Alignment ... work in progress')
-    #case 2 template matching
+        #case 2 template matching
     annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
     tif.imwrite(annTifFN,annTiff)
     return annTiff
