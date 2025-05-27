@@ -46,9 +46,14 @@ def compress_traces(expmtPath, dataDict):
                 ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent] #downsampling bc fps = 30, but voltage sampled 10000 hz
                 rawTrace = np.array(dataDict[trial][f'cycle{cycleIDX}_traces'])
                 frameLoss = 25
-                rawTracesPadded = np.pad(rawTrace, ((0,0),(0,frameLoss)), mode='constant', constant_values=np.nan)
-                voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,frameLoss), mode='constant', constant_values=np.nan)[1:]
-                cycleTrace =rawTracesPadded            
+                if ventilatorTrace.shape[0] == rawTrace.shape[1]:
+                    rawTracesPadded = np.pad(rawTrace, ((0,0),(0,frameLoss)), mode='constant', constant_values=np.nan)
+                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,frameLoss), mode='constant', constant_values=np.nan)
+                else:
+                    rawTracesPadded = np.pad(rawTrace, ((0,0),(0,frameLoss)), mode='constant', constant_values=np.nan)
+                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,frameLoss), mode='constant', constant_values=np.nan)[1:]
+                    
+                cycleTrace =rawTracesPadded       
                 try:
                     addToTraces = np.vstack([cycleTrace, voltageTracePadded])
                     trialTrace.append(addToTraces)
@@ -240,7 +245,7 @@ def plot_individual_cell(expmtPath, trial, roi, traces):
             fig.legend()
     return fig
 
-#%%
+#%
 
 if __name__=='__main__':
     dataFrom = [
@@ -251,11 +256,11 @@ if __name__=='__main__':
     expmtRecords = glob.glob(dataFrom[2])
     plt.close('all')
     for expmt in expmtRecords:
+        print('Loading Traces for \n', expmt)
         if os.path.exists(expmt+'/expmtTraces.pkl'):
-            if os.path.exists(expmt+'/dev/'):
+            if os.path.exists(expmt+'/figures/'):
                 print('Figures already generated for this experiment')
             else:
-                print('Loading Traces for \n', expmt)
                 with open(expmt+'/expmtTraces.pkl', 'rb') as f:
                     dataDict = pickle.load(f)
                 expmtNotes = pd.read_excel(glob.glob(expmt+'/expmtNotes*.xlsx')[0])
