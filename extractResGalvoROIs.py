@@ -166,7 +166,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                     wgaSlice = wgaZStack[trialSlice,:,:]
                     gcampSlice = gcampZStack[trialSlice,:,:]
                     resolution = gcampSlice.shape
-                    shifts = generate_shifts(mIM, gcampSlice, trial)
+                    # shifts = generate_shifts(mIM, gcampSlice, trial)
                     if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
                         annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
                     else:
@@ -177,7 +177,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                     correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                     correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                     if cycleIDX == 0:
-                        _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTiffFN, resolution)
+                        _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 25, annTiffFN, resolution)
                 elif expmtNotes['lung_label'].values[0] == 'WGATR':
                     registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
                     correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
@@ -232,11 +232,11 @@ def extract_res_roi_traces(expmtPath):
                 cycleFeatures = {}
                 for cycleIDX in range(len(registeredTiffs_ch1)):
                     if cycleIDX == 0:
-                        redCycle = tif.imread(registeredTiffs_ch1[cycleIDX]) #only load this one once...
+                        redCycle = tif.imread(registeredTiffs_ch1[cycleIDX]) 
+                        greenCycle = tif.imread(registeredTiffs_ch2[cycleIDX])
+                        rgbIM[2,:,:] = resize(np.nanmean(greenCycle, axis=0), (masks.shape[0], masks.shape[1]), preserve_range=True, anti_aliasing=True)
+                        roiFeatures = {}
                     meanRed = np.nanmean(redCycle, axis=0)
-                    greenCycle = tif.imread(registeredTiffs_ch2[cycleIDX])
-                    rgbIM[2,:,:] = np.nanmean(greenCycle, axis=0)
-                    roiFeatures = {}
                     cycleTrace = []
                     for roi in rois:
                         if cycleIDX == 0:         #only do this once               
