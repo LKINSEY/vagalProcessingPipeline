@@ -89,23 +89,6 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
     if resolution[0] != mIM.shape[0]:
         mIM = resize(mIM, (resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
 
-    '''
-
-    using cv2 since there is a possibility of scaling issues
-
-    padding = (
-        (np.abs(shifts[0])+25,np.abs(shifts[0])+25),#x shifts
-        (np.abs(shifts[1])+25,np.abs(shifts[1])+25) #y shifts
-    )
-    paddedIM = np.pad(mIM, padding, mode='constant', constant_values=0)
-    paddedWGASlice = np.pad(wgaSlice, padding, mode='constant', constant_values=0)
-    paddedGCaMPSlice = np.pad(gcampSlice, padding, mode='constant', constant_values=0)
-
-    correctedIM = np.roll(paddedIM, (-shifts[1],-shifts[0]), axis=(0,1))   
-
-    annTiff = np.stack((paddedWGASlice, paddedGCaMPSlice, correctedIM), axis=0)
-    '''
-
     gcampSlice = cv2.normalize(gcampSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
  
     wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
