@@ -225,7 +225,7 @@ def extract_res_roi_traces(expmtPath):
                 segmentationLoaded = np.load(masksNPY[0], allow_pickle=True).item()
                 masks = segmentationLoaded['masks']
                 if len(masks.shape) == 3:
-                    masks = masks[1,:,:]
+                    masks = masks[0,:,:]
                 rgbIM = np.zeros((3, masks.shape[0], masks.shape[1]))
                 rgbIM[1,:,:] = masks
                 rois = np.unique(masks)[1:]
