@@ -114,7 +114,7 @@ def summerize_experiment(expmtPath, trial, traces):
     expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xlsx')[0])
     labeling = expmtNotes['lung_label'][0]
     if labeling == 'WGATR':
-        roiRedValue = traces[f'T{trial}_roiRedness'][0]
+        # roiRedValue = traces[f'T{trial}_roiRedness'][0]
         print(f'Labeling is {labeling}')
     else:
         print(f'Labeling is {labeling} - no red values to plot')
@@ -214,6 +214,7 @@ def plot_individual_cell(expmtPath, trial, roi, traces):
                 conditionString = expmtNotes['stim_type'].values[actualTrial]
                 stimFrame = find_stim_frame(voltageTrace, conditionString)
                 if stimFrame is None:
+                    print('No stim frame detected!')
                     break
                 else:
                     if stimFrame >=150:
@@ -239,7 +240,7 @@ def plot_individual_cell(expmtPath, trial, roi, traces):
                     ax[condition].axvline(0, color='red')
                     
                     ax[condition].set_ylim([-0.5, 0.75])
-                    fig.suptitle(f'ROI Traces of ROI={roi} at depth = {expmtNotes['z_pos'].values[actualTrial]}')
+                    fig.suptitle(f'ROI Traces of ROI={roi} at depth = {expmtNotes["z_pos"].values[actualTrial]}')
                     fig.supxlabel('Time (30 fps)')
 
             fig.legend()
@@ -273,7 +274,7 @@ if __name__=='__main__':
                     print(f'Generating Plots for trials {trialSlice} through {trialSlice + nConditions}')
                     summerize_experiment(expmt, trialSlice+1, traces)
                 print('Saved Plots...')
-                break #only work with 5-7 for now...
+                # break #only work with 5-7 for now...
         else:
             print('Experiment not processed yet')
         print('******************* NEXT *******************')
