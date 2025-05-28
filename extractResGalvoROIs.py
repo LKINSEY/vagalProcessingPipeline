@@ -231,12 +231,12 @@ def extract_res_roi_traces(expmtPath):
                 rois = np.unique(masks)[1:]
                 cycleFeatures = {}
                 for cycleIDX in range(len(registeredTiffs_ch1)):
+                    greenCycle = tif.imread(registeredTiffs_ch2[cycleIDX])
                     if cycleIDX == 0:
                         redCycle = tif.imread(registeredTiffs_ch1[cycleIDX]) 
-                        greenCycle = tif.imread(registeredTiffs_ch2[cycleIDX])
                         rgbIM[2,:,:] = resize(np.nanmean(greenCycle, axis=0), (masks.shape[0], masks.shape[1]), preserve_range=True, anti_aliasing=True)
                         roiFeatures = {}
-                    meanRed = np.nanmean(redCycle, axis=0)
+                        meanRed = np.nanmean(redCycle, axis=0)
                     cycleTrace = []
                     for roi in rois:
                         if cycleIDX == 0:         #only do this once               
