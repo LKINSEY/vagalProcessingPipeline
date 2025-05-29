@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.ndimage import center_of_mass
-# import matplotlib
-# matplotlib.use('WebAgg') #display in web browser (requires a plt.show() and plt.close('all') to reset view)
+import matplotlib
+matplotlib.use('WebAgg') #display in web browser (requires a plt.show() and plt.close('all') to reset view)
 # %matplotlib inline #go back to displaying inline
 import pandas as pd
 import os,glob, pickle
@@ -123,8 +123,16 @@ def summerize_experiment(expmtPath, trial, traces):
     masksNPY = glob.glob(expmtPath+f'/segmentations/WGA_manual/*rT*C*Ch*slice{segmentationUsed}_seg.npy')
     masksLoaded = np.load(masksNPY[0], allow_pickle=True).item()
 
-    roiMask = masksLoaded['masks']
-    roiOutlines = masksLoaded['outlines']
+    
+    if labeling == 'WGATR':
+        roiMask = masksLoaded['masks']
+        roiOutlines = masksLoaded['outlines']
+    if labeling == 'WGA594':
+        roiMask = masksLoaded['masks']
+        roiMask = roiMask[0,:,:]
+        roiOutlines = masksLoaded['outlines']
+        roiOutlines = roiOutlines[0,:,:]
+    
     rois = np.unique(roiMask)[1:]
     if os.path.exists(expmt+'/figures/'):
         pdfSummary = PdfPages(expmtPath+f'/figures/slice{slicePerTrial[trial]}_dev_summary.pdf')
@@ -143,6 +151,7 @@ def summerize_experiment(expmtPath, trial, traces):
         
         gCAMPIM = np.zeros((roiMask.shape[0], roiMask.shape[1],3))
         wgaIM = np.zeros((roiMask.shape[0], roiMask.shape[1],3))
+
         gCAMPIM[:,:,1]  = roiMask
         gCAMPIM[:,:,0] = np.power(   mIM/np.max(mIM-20) , .72)
         gCAMPIM[:,:,2] = np.power(   mIM/np.max(mIM-20) , .72)
@@ -158,30 +167,60 @@ def summerize_experiment(expmtPath, trial, traces):
         ax[0].set_title('GCaMP IM')
         wgaIM = np.clip(wgaIM, 0,1)
         ax[1].imshow(wgaIM)
-        ax[1].set_title('WGA IM')
+        ax[1].set_title('WGA TR IM')
         ax[1].axis('off')
         for roi in rois:
             ax[0].text(roiCenters[roi-1][1]-2,roiCenters[roi-1][0], f'{roi}', color='black', size=2)
         fig.suptitle(f'ROI {roi} Overlay')
         plt.savefig(pdfSummary, format='pdf')
-       
-        expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xlsx')[0])
-        expmtConditions = np.unique(expmtNotes['stim_type'].values)
-        nTrials = len(glob.glob(expmtPath+'/TSeries*'))
-        nConditions = len(expmtConditions)
 
-        for conditionIDX in range(nConditions):
-            allROIsFig = compare_all_ROIs(conditionIDX, trial, expmtNotes['stim_type'].values, traces)
-            plt.savefig(pdfSummary, format='pdf')
-    
-        for roi in rois:
-            dFFFigure = plot_individual_cell(expmtPath, trial, roi, traces)
-            plt.savefig(pdfSummary, format='pdf')
+    elif labeling == 'WGA594':
+        print('WGA-594 Labeling')
+        annTiffPath = glob.glob(expmt+f'/segmentations/WGA_manual/AVG_T{trial-1}*.tif')[0]
+        annTiff = tif.imread(annTiffPath)
+
+        mIM = annTiff[2,:,:]
+        rmIM = annTiff[0,:,:]
+
+        gCAMPIM = np.zeros((roiMask.shape[0], roiMask.shape[1],3))
+        wgaIM = np.zeros((roiMask.shape[0], roiMask.shape[1],3))
+
+        gCAMPIM[:,:,1]  = roiMask
+        gCAMPIM[:,:,0] = np.power(   mIM/np.max(mIM-20) , .72)
+        gCAMPIM[:,:,2] = np.power(   mIM/np.max(mIM-20) , .72)
         
-        print('Saving...')
-        pdfSummary.close()
-    else:
-        print('WGA-594 res galvo pipeline still a work in progress')
+        wgaIM[:,:,1]  = roiOutlines
+        wgaIM[:,:,0] = np.power(   rmIM/np.max(rmIM-20) , .52)
+        wgaIM[:,:,2] = np.power(   rmIM/np.max(rmIM-20) , .52)
+
+        fig, ax = plt.subplots( 1,2)
+        gCAMPIM = np.clip(gCAMPIM, 0,1)
+        ax[0].imshow(gCAMPIM)
+        ax[0].axis('off')
+        ax[0].set_title('GCaMP IM')
+        wgaIM = np.clip(wgaIM, 0,1)
+        ax[1].imshow(wgaIM)
+        ax[1].set_title('WGA TR IM')
+        ax[1].axis('off')
+        for roi in rois:
+            ax[0].text(roiCenters[roi-1][1]-2,roiCenters[roi-1][0], f'{roi}', color='black', size=2)
+        fig.suptitle(f'ROI {roi} Overlay')
+        plt.savefig(pdfSummary, format='pdf')
+        
+    expmtConditions = np.unique(expmtNotes['stim_type'].values)
+    nConditions = len(expmtConditions)
+
+    for conditionIDX in range(nConditions):
+        allROIsFig = compare_all_ROIs(conditionIDX, trial, expmtNotes['stim_type'].values, traces)
+        plt.savefig(pdfSummary, format='pdf')
+
+    for roi in rois:
+        dFFFigure = plot_individual_cell(expmtPath, trial, roi, traces)
+        plt.savefig(pdfSummary, format='pdf')
+    
+    print('Saving...')
+    pdfSummary.close()
+
 
 def find_stim_frame(ventilatorTrace, condition):
     edges = ventilatorTrace - np.roll(ventilatorTrace, -1)
