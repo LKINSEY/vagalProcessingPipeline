@@ -109,7 +109,7 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
     else:
         print('Case 2 Alignment ... work in progress')
         #case 2 template matching
-    annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
+    annTiff = np.stack((alignedgWGAStack, mIM, alignedgCaMPStack), axis=0)
     tif.imwrite(annTifFN,annTiff)
     return annTiff
 
@@ -133,48 +133,33 @@ def register_res_galvo_trials(expmtPath, regParams):
             print(f'Reading Trial {trialCounter} Cycles...')
             for cycleIDX in range(len(trialCycles_ch1)):
                 print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
-                cycleTiff_ch1 = tif.imread(trialCycles_ch1[cycleIDX])
                 cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
-
-                #make annotation tiffs here
-                if expmtNotes['lung_label'].values[0] == 'WGA594':
-                    registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
-                    correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
-                    registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
-                    correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>60000, 0, registeredCycle_ch2[:])
-                    mIM = np.nanmean(cycleTiff_ch2, axis=0)
+                registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
+                correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>60000, 0, registeredCycle_ch2[:])
+                mIM = np.nanmean(correctedRegisteredCycle_ch2, axis=0)
+                if expmtNotes['lung_label'].values[0] == 'WGA594': #uses stack to find WGA
                     wgaZStack = tif.imread(zSeriesPathWGA)
                     gcampZStack = tif.imread(zSeriesPathGCaMP)
                     trialSlice = slices[trialIDX]
                     wgaSlice = wgaZStack[trialSlice,:,:]
                     gcampSlice = gcampZStack[trialSlice,:,:]
-                    resolution = gcampSlice.shape
-                    # shifts = generate_shifts(mIM, gcampSlice, trial)
-                    if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
-                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
-                    else:
-                        os.mkdir(expmtPath+'/segmentations/')
-                        os.mkdir(expmtPath+'/segmentations/WGA_manual')
-                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
-                    #resizing so segmentation masks match zstack resolution
-                    correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
-                    correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
-                    if cycleIDX == 0:
-                        _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 25, annTiffFN, resolution)
-                elif expmtNotes['lung_label'].values[0] == 'WGATR':
+                elif expmtNotes['lung_label'].values[0] == 'WGATR': #uses mean trail ch1 to find WGA
+                    cycleTiff_ch1 = tif.imread(trialCycles_ch1[cycleIDX])
                     registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
+                    tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
                     correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
-                    registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
-                    correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>60000, 0, registeredCycle_ch2[:])
-                    if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
-                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
-                    else:
-                        os.mkdir(expmtPath+'/segmentations/')
-                        os.mkdir(expmtPath+'/segmentations/WGA_manual')
-                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
-                    tif.imwrite(annTiffFN, mIM)
-
-                tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
+                    wgaSlice = np.nanmean(correctedRegisteredCycle_ch1, axis=0)
+                    gcampSlice = mIM
+                resolution = gcampSlice.shape
+                if os.path.exists(expmtPath+'/cellCountingTiffs/'):
+                    annTiffFN = expmt+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
+                else:
+                    os.mkdir(expmtPath+'/cellCountingTiffs/')
+                    annTiffFN = expmt+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
+                correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                if cycleIDX == 0:
+                    _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 25, annTiffFN, resolution)
                 tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
         else:
             print(f'Trial {trialCounter} is registered!')
