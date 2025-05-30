@@ -148,6 +148,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                     registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
                     tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
                     correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
+                    correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                     wgaSlice = np.nanmean(correctedRegisteredCycle_ch1, axis=0)
                     gcampSlice = mIM
                 resolution = gcampSlice.shape
@@ -156,7 +157,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                 else:
                     os.mkdir(expmtPath+'/cellCountingTiffs/')
                     annTiffFN = expmt+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
-                correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                
                 correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                 if cycleIDX == 0:
                     _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 25, annTiffFN, resolution)
@@ -178,7 +179,7 @@ def extract_res_roi_traces(expmtPath):
     slicePerTrial = expmtNotes['slice_label'].values
     trialCounter = 0
     dataDict = {}
-    numSegmentations = glob.glob(expmtPath+f'/segmentations/WGA_manual/*.npy')
+    numSegmentations = glob.glob(expmtPath+f'/cellCountingTiffs/*.npy')
     if os.path.exists(expmt+'/expmtTraces.pkl'):
         print('Traces Already Extracted')
         return None
@@ -237,8 +238,9 @@ if __name__=='__main__':
         'U:/expmtRecords/Lucas*',
         'C:/Analysis/april_data/Lucas*',
         'U:/expmtRecords/res_galvo/Lucas*',
+        'U:/expmtRecords/mech_galvo/Lucas*',
         ]
-    expmtRecords = glob.glob(dataFrom[2])
+    expmtRecords = glob.glob(dataFrom[3])
     regParams = {
         'maxShifts': (25,25),
         'frames_per_split': 1000, 
