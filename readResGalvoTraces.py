@@ -120,7 +120,7 @@ def summerize_experiment(expmtPath, trial, traces):
         print(f'Labeling is {labeling} - no red values to plot')
     slicePerTrial = expmtNotes['slice_label'].values
     segmentationUsed = slicePerTrial[trial-1]
-    masksNPY = glob.glob(expmtPath+f'/segmentations/WGA_manual/*rT*C*Ch*slice{segmentationUsed}_seg.npy')
+    masksNPY = glob.glob(expmtPath+f'/segmentations/WGA_manual/*T*C*Ch*slice{segmentationUsed}_seg.npy')
     masksLoaded = np.load(masksNPY[0], allow_pickle=True).item()
 
     
@@ -206,7 +206,7 @@ def summerize_experiment(expmtPath, trial, traces):
             ax[0].text(roiCenters[roi-1][1]-2,roiCenters[roi-1][0], f'{roi}', color='black', size=2)
         fig.suptitle(f'ROI {roi} Overlay')
         plt.savefig(pdfSummary, format='pdf')
-        
+
     expmtConditions = np.unique(expmtNotes['stim_type'].values)
     nConditions = len(expmtConditions)
 
@@ -232,6 +232,7 @@ def find_stim_frame(ventilatorTrace, condition):
         stimFrame = fallingIDX[np.where(exspLengths == longestExsp)[0]-1]
     elif condition=='baseline':
         stimFrame = None
+        return
     else:
         inspLengths = risingIDX - np.roll(risingIDX, 1)
         longestInsp = np.unique(inspLengths)[-1]
@@ -253,7 +254,7 @@ def plot_individual_cell(expmtPath, trial, roi, traces):
                 conditionString = expmtNotes['stim_type'].values[actualTrial]
                 stimFrame = find_stim_frame(voltageTrace, conditionString)
                 if stimFrame is None:
-                    print('No stim frame detected!')
+                    print('Baseline Epoch Skipped')
                     break
                 else:
                     if stimFrame >=150:
@@ -285,7 +286,7 @@ def plot_individual_cell(expmtPath, trial, roi, traces):
             fig.legend()
     return fig
 
-#%
+#%%
 
 if __name__=='__main__':
     dataFrom = [

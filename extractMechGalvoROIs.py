@@ -2,7 +2,7 @@
 import tifffile as tif
 import numpy as np
 import matplotlib.pyplot as plt
-import os, glob, pickle
+import os, glob, pickle, cv2
 import jnormcorre
 import jnormcorre.motion_correction
 import jnormcorre.utils.registrationarrays as registrationarrays
@@ -77,26 +77,37 @@ def generate_shifts(mIM, gcampSlice, trial):
         plt.show()
     return (dx,dy)
 
-def make_annotation_tif(mIM, gcampSlice, wgaSlice, shifts, annTifFN):
+def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
-    #padd so we can roll
-    padding = (
-        (np.abs(shifts[0])+25,np.abs(shifts[0])+25),#x shifts
-        (np.abs(shifts[1])+25,np.abs(shifts[1])+25) #y shifts
-    )
-    paddedIM = np.pad(mIM, padding, mode='constant', constant_values=0)
-    paddedWGASlice = np.pad(wgaSlice, padding, mode='constant', constant_values=0)
-    paddedGCaMPSlice = np.pad(gcampSlice, padding, mode='constant', constant_values=0)
+    #zstack will always be at 2x
+    low, high = np.percentile(gcampSlice, [0.4, 99.6]) #adjust contrast for best outcome
+    gcampSlice = np.clip((gcampSlice - low) / (high - low), 0, 1) * 255
 
-    #apply the roll to the trial to match zstack slices
-    correctedIM = np.roll(paddedIM, (-shifts[1],-shifts[0]), axis=(0,1))   
-    
-    #make stack
-    annTiff = np.stack((paddedWGASlice, paddedGCaMPSlice, correctedIM), axis=0)
+    if resolution[0] != mIM.shape[0]:
+        mIM = resize(mIM, (resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
 
-    #save stack
+    gcampSlice = cv2.normalize(gcampSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+ 
+    wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    mIM = cv2.normalize(mIM, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    akaze = cv2.AKAZE_create()
+    kpA, desA = akaze.detectAndCompute(gcampSlice, None)
+    kpB, desB = akaze.detectAndCompute(mIM, None)
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(desA, desB)
+    if len(matches) > threshold:
+        #case 1, affine transformation
+        matches = sorted(matches, key=lambda x: x.distance)
+        ptsA = np.float32([kpA[m.queryIdx].pt for m in matches]).reshape(-1,1,2)
+        ptsB = np.float32([kpB[m.trainIdx].pt for m in matches]).reshape(-1,1,2)
+        matrix, mask = cv2.estimateAffinePartial2D(ptsA,ptsB)
+        alignedgCaMPStack = cv2.warpAffine(gcampSlice, matrix, (mIM.shape[1], mIM.shape[0]))
+        alignedgWGAStack = cv2.warpAffine(wgaSlice, matrix, (mIM.shape[1], mIM.shape[0]))
+    else:
+        print('Case 2 Alignment ... work in progress')
+        #case 2 template matching
+    annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
     tif.imwrite(annTifFN,annTiff)
-
     return annTiff
 
 '''
@@ -225,6 +236,73 @@ def read_single_expmt_data(expmtPath, regParams, galvo='mechanical', dev=False):
 
     return expmtSummary
 
+
+
+def register_mech_galvo_trials(expmtPath, regParams):
+    trialPaths = glob.glob(expmtPath+'/TSeries*')
+    try:
+        expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
+    except IndexError:
+        print('Need to create expmtNotes for experiment! exiting...')
+        return
+    zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
+    zSeriesPathGCaMP = glob.glob(expmtPath+'/ZSeries*/*Ch2*.tif')[0]
+    slices = expmtNotes['slice_label'].values
+    trialCounter = 1
+    for trial in trialPaths:
+        trialIDX = trialCounter-1
+        trialCycles_ch1 = glob.glob(trial+'/TSeries*Ch1*.tif')
+        trialCycles_ch2 = glob.glob(trial+'/TSeries*Ch2*.tif')
+        registeredTrials = glob.glob(trial+'/rT*_C*_ch*.tif')
+        if len(registeredTrials) <1:
+            print(f'Reading Trial {trialCounter} Cycles...')
+            for cycleIDX in range(len(trialCycles_ch1)):
+                print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
+                cycleTiff_ch1 = tif.imread(trialCycles_ch1[cycleIDX])
+                cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
+                #make annotation tiffs here
+                if expmtNotes['lung_label'].values[0] == 'WGA594':
+                    registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
+                    correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
+                    registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
+                    correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>60000, 0, registeredCycle_ch2[:])
+                    mIM = np.nanmean(cycleTiff_ch2, axis=0)
+                    wgaZStack = tif.imread(zSeriesPathWGA)
+                    gcampZStack = tif.imread(zSeriesPathGCaMP)
+                    trialSlice = slices[trialIDX]
+                    wgaSlice = wgaZStack[trialSlice,:,:]
+                    gcampSlice = gcampZStack[trialSlice,:,:]
+                    resolution = gcampSlice.shape
+                    # shifts = generate_shifts(mIM, gcampSlice, trial)
+                    if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    else:
+                        os.mkdir(expmtPath+'/segmentations/')
+                        os.mkdir(expmtPath+'/segmentations/WGA_manual')
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    #resizing so segmentation masks match zstack resolution
+                    correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                    correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                    if cycleIDX == 0:
+                        _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 25, annTiffFN, resolution)
+                elif expmtNotes['lung_label'].values[0] == 'WGATR':
+                    registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
+                    correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>60000, 0, registeredCycle_ch1[:])
+                    registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
+                    correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>60000, 0, registeredCycle_ch2[:])
+                    if os.path.exists(expmtPath+'/segmentations/WGA_manual/'):
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    else:
+                        os.mkdir(expmtPath+'/segmentations/')
+                        os.mkdir(expmtPath+'/segmentations/WGA_manual')
+                        annTiffFN = expmtPath+f'/segmentations/WGA_manual/AVG_rT{trialCounter}_C{cycleIDX+1}_ch2.tif'
+                    tif.imwrite(annTiffFN, mIM)
+
+                tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
+                tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
+        else:
+            print(f'Trial {trialCounter} is registered!')
+        trialCounter+=1
 #%% Run Processing Pipeline
 if __name__=='__main__':
     dataFrom = [
@@ -247,7 +325,7 @@ if __name__=='__main__':
     expmtRecords = glob.glob(dataFrom[2])
     for expmt in expmtRecords:
         print('Working on', expmt)
-        expmtDict = read_single_expmt_data(expmt,regParams)
+        dataDict = register_mech_galvo_trials(expmt,regParams)
         with open(f'{expmt}/expmtSummary.pkl', 'wb') as f:
-            pickle.dump(expmtDict, f)
+            pickle.dump(dataDict, f)
     print('Done')

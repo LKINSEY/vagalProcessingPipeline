@@ -2,28 +2,68 @@
 import tifffile as tif
 import numpy as np
 import pandas as pd
-import os, glob, pickle, cv2
+import os, glob, pickle
 import matplotlib.pyplot as plt
 from skimage.transform import resize
 from scipy.signal import fftconvolve
+import cv2
 from extractResGalvoROIs import make_annotation_tif
+#%%
+imageA = tif.imread('C:/temp/slice24.tif')
+imageA = cv2.normalize(imageA, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+imageB = tif.imread('C:/temp/AVG_rT1_C1_ch2.tif')
+imageB = cv2.normalize(imageB, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
-#script for correcting annotation tiffs
-expmtList = [
-    'U:/expmtRecords/res_galvo/Lucas_250519_001',
-    'U:/expmtRecords/res_galvo/Lucas_250521_001',
-    'U:/expmtRecords/res_galvo/Lucas_250523_001'
-]
+#detect keyhpoints and descriptors
+# orb = cv2.ORB_create(10000)
+akaze = cv2.AKAZE_create()
+kpA, desA = akaze.detectAndCompute(imageA, None)
+kpB, desB = akaze.detectAndCompute(imageB, None)
+
+#match features
+bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+matches = bf.match(desA, desB)
+# matches = bf.knnMatch(desA, desB, k=2)
+matches = sorted(matches, key=lambda x: x.distance)
+
+#estimate an affube trabsfirnatuib (or homograpghy)
+#location of good matches
+ptsA = np.float32([kpA[m.queryIdx].pt for m in matches]).reshape(-1,1,2)
+ptsB = np.float32([kpB[m.trainIdx].pt for m in matches]).reshape(-1,1,2)
+
+#compute affine or homography matrix
+matrix, mask = cv2.estimateAffinePartial2D(ptsA,ptsB) # Returns 2x3 affine matrix
+
+#warp imageA to match imageB
+alignedA = cv2.warpAffine(imageA, matrix, (imageB.shape[1], imageB.shape[0]))
+
+#visualize
+cv2.imshow('aligned imageA', alignedA)
+cv2.imshow('image b', imageB)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+#%%
+#if zoomed in a lot, then template matching is better than this method. therefore you will
+#need to extract zoom factor for each trial and figure out a logic to use template matching
+#vs affine transformation (i.e. if matches == 0 then do template matching)
+
+#according to chat gpt
+#do AKAZE FIRST
+#2 metrics:
+#if numMatches >= threshold
+#and
+#if inlier_ratio = np.sum(mask) / len(matches) > 0.5
+
+#personally also include (if metadata reports zoom > 2x ->4x, then do template matching)
+
+#%%
 
 def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
     #zstack will always be at 2x
-    # gcampSlice = auto_contrast(gcampSlice)
-    low, high = np.percentile(gcampSlice, [0.4, 99.6])
-    gcampSlice = np.clip((gcampSlice - low) / (high - low), 0, 1) * 255
 
     if resolution[0] != mIM.shape[0]:
-        print('flag!')
         mIM = resize(mIM, (resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
 
     '''
@@ -44,56 +84,30 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
     '''
 
     gcampSlice = cv2.normalize(gcampSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
- 
     wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     mIM = cv2.normalize(mIM, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    
     akaze = cv2.AKAZE_create()
     kpA, desA = akaze.detectAndCompute(gcampSlice, None)
     kpB, desB = akaze.detectAndCompute(mIM, None)
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
     matches = bf.match(desA, desB)
     if len(matches) > threshold:
-        #case 1, affine transformation
         matches = sorted(matches, key=lambda x: x.distance)
         ptsA = np.float32([kpA[m.queryIdx].pt for m in matches]).reshape(-1,1,2)
         ptsB = np.float32([kpB[m.trainIdx].pt for m in matches]).reshape(-1,1,2)
         matrix, mask = cv2.estimateAffinePartial2D(ptsA,ptsB)
         alignedgCaMPStack = cv2.warpAffine(gcampSlice, matrix, (mIM.shape[1], mIM.shape[0]))
         alignedgWGAStack = cv2.warpAffine(wgaSlice, matrix, (mIM.shape[1], mIM.shape[0]))
+    #case 1, affine transformation
     else:
         print('Case 2 Alignment ... work in progress')
-        #case 2 template matching
+    #case 2 template matching
     annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
     tif.imwrite(annTifFN,annTiff)
     return annTiff
-
-
-for expmt in expmtList:
-    print('Experiment:', expmt)
-    notesPath = glob.glob(expmt+'/expmtNotes*')[0]
-    notes = pd.read_excel(notesPath)
-    zStacks_red = glob.glob(expmt+'/ZSeries*/*Ch1*.tif')
-    zStacks_green = glob.glob(expmt+'/ZSeries*/*Ch2*.tif')
-    trialSliceMatch = notes['slice_label'].values
-    trialPaths = glob.glob(expmt+'/TSeries*')
-    for trialIDX in range(len(trialPaths)):
-        print('trial ', trialIDX)
-        trialTifPath = glob.glob(trialPaths[trialIDX]+f'/rT{trialIDX+1}_C1_*ch2*.tif')[0] #just takes first cycle if multiple cycles
-        bestSlice = trialSliceMatch[trialIDX]
-        print('loading...')
-        trialTifLoaded = tif.imread(trialTifPath)
-        wgaStackLoaded = tif.imread(zStacks_red)
-        gCaMPStackLoaded = tif.imread(zStacks_green)
-        mIM = np.nanmean(trialTifLoaded, axis=0)
-        gCaMPSlice = gCaMPStackLoaded[bestSlice,:,:]
-        print(gCaMPSlice.shape)
-        wgaSlice = wgaStackLoaded[bestSlice,:,:]
-        annTiffFN = expmt+f'/segmentations/WGA_manual/AVG_T{trialIDX}_C1_ch2_slice{bestSlice}.tif'
-        print('making tiff')
-
-        result = make_annotation_tif(mIM, gCaMPSlice, wgaSlice, 5, annTiffFN, wgaSlice.shape)
-
-
-
-
+mIM = tif.imread('C:/temp/mIM.tif')
+wgaStack = tif.imread('C:/temp/wgaStack.tif')
+gCaMPStack = tif.imread('C:/temp/gCaMPStack.tif')
+test = make_annotation_tif(mIM, gCaMPStack, wgaStack, 5, 'C:/temp/annTif.tif', wgaStack.shape)
 # %%
