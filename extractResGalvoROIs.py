@@ -82,16 +82,17 @@ on hold...
 
 def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
-    #zstack will always be at 2x
-    low, high = np.percentile(gcampSlice, [0.4, 99.6]) #adjust contrast for best outcome
+    low, high = np.percentile(gcampSlice, [0.4, 99.6])
     gcampSlice = np.clip((gcampSlice - low) / (high - low), 0, 1) * 255
 
     if resolution[0] != mIM.shape[0]:
+        print('flag!')
         mIM = resize(mIM, (resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
 
+
     gcampSlice = cv2.normalize(gcampSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
- 
     wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    
     mIM = cv2.normalize(mIM, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     akaze = cv2.AKAZE_create()
     kpA, desA = akaze.detectAndCompute(gcampSlice, None)
@@ -108,8 +109,9 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
         alignedgWGAStack = cv2.warpAffine(wgaSlice, matrix, (mIM.shape[1], mIM.shape[0]))
     else:
         print('Case 2 Alignment ... work in progress')
+        return
         #case 2 template matching
-    annTiff = np.stack((alignedgWGAStack, mIM, alignedgCaMPStack), axis=0)
+    annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
     tif.imwrite(annTifFN,annTiff)
     return annTiff
 
@@ -158,7 +160,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                     os.mkdir(expmtPath+'/cellCountingTiffs/')
                     annTiffFN = expmt+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
                 
-                correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch2.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                 if cycleIDX == 0:
                     _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 25, annTiffFN, resolution)
                 tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
