@@ -154,7 +154,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                     cycleTiff_ch1 = tif.imread(trialCycles_ch1[cycleIDX])
                     registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
                     correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>59000,np.nan, registeredCycle_ch1[:])
-                    correctedRegisteredCycle_ch1 = resize(correctedRegisteredCycle_ch1[:], output_shape=(correctedRegisteredCycle_ch1.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                   
                     tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
                     wgaSlice = np.nanmean(correctedRegisteredCycle_ch1, axis=0)
                     gcampSlice = mIM
