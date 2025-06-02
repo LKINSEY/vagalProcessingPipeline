@@ -89,7 +89,6 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
         print('flag!')
         mIM = resize(mIM, (resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
 
-
     gcampSlice = cv2.normalize(gcampSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     wgaSlice = cv2.normalize(wgaSlice, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     
@@ -247,7 +246,7 @@ if __name__=='__main__':
         'U:/expmtRecords/res_galvo/Lucas*',
         'U:/expmtRecords/mech_galvo/Lucas*',
         ]
-    expmtRecords = glob.glob(dataFrom[3])
+    expmtRecords = glob.glob(dataFrom[2])
     regParams = {
         'maxShifts': (25,25),
         'frames_per_split': 1000, 
