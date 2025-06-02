@@ -143,6 +143,9 @@ def register_res_galvo_trials(expmtPath, regParams):
                     wgaZStack = tif.imread(zSeriesPathWGA)
                     gcampZStack = tif.imread(zSeriesPathGCaMP)
                     trialSlice = slices[trialIDX]
+                    if trialSlice == -1:
+                        print('passing due to zstack error')
+                        break
                     wgaSlice = wgaZStack[trialSlice,:,:]
                     gcampSlice = gcampZStack[trialSlice,:,:]
                 elif expmtNotes['lung_label'].values[0] == 'WGATR': #uses mean trail ch1 to find WGA
@@ -162,7 +165,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                 
                 correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch2.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
                 if cycleIDX == 0:
-                    _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 25, annTiffFN, resolution)
+                    _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 5, annTiffFN, resolution)
                 tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
         else:
             print(f'Trial {trialCounter} is registered!')
