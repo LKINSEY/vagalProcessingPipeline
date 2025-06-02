@@ -137,7 +137,7 @@ def register_res_galvo_trials(expmtPath, regParams):
                 print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
                 cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
                 registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
-                correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>60000, np.nan, registeredCycle_ch2[:])
+                correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>59000, np.nan, registeredCycle_ch2[:])
                 mIM = np.nanmean(correctedRegisteredCycle_ch2, axis=0)    
                 trialSlice = slices[trialIDX]                
                 if trialSlice == -1:
