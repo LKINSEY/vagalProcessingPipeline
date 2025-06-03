@@ -223,6 +223,8 @@ def extract_roi_traces(expmtPath):
                     #extract and save traces of every gCaMP+ ROI
                     cycleTrace = []
                     roiFeatures = {}
+                    roiFeatures['gCaMP_only_rois'] = gCaMPOnly
+                    roiFeatures['colabeled_rois'] = colabeledROIs
                     for roi in rois:
                         if cycleIDX == 0:         #only do this once               
                             xROI, yROI = (masks==roi).nonzero()
