@@ -10,7 +10,7 @@ matplotlib.use('WebAgg') #display in web browser (requires a plt.show() and plt.
 import pandas as pd
 import os,glob, pickle
 
-def compress_traces(expmtPath, dataDict):
+def sync_traces(expmtPath, dataDict):
     '''
     trials:
     dataDict.keys() = dict_keys([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
@@ -19,57 +19,49 @@ def compress_traces(expmtPath, dataDict):
     features of rois
     dataDict[0]['T0_roiFeatures'].keys() = dict_keys(['roi1_redAvg', 'roi1_diameter', 'roi1_window', ... ect...
     '''
+
+    #establish notes and output dict
     expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xlsx')[0])
-    slicesForTrial = expmtNotes['slice_label'].values
+    stimFrames = expmtNotes['stim_frame'].values
     fpsPerTrial = expmtNotes['frame_rate'].values
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     traceDict = {}
     for trial in dataDict.keys():
-        fps = fpsPerTrial[trial-1]
-        ventilatorSamplingRate = 10000
-        downSampleVent = round(ventilatorSamplingRate/fps) #so for a 29.94 Hz recording this will sample vent trace every 334th frame
-        print(f'Extracting Traces for trial {trial}')
+        print('Extracting traces for trial', trial+1)
+        stimFrame = stimFrames[trial]
         trialPath = trialPaths[trial]
         nCycles = len(glob.glob(trialPath+'/rT*_C*_ch2.tif'))
-        roiRedness = [] #avg red value of each roi
-        numROIs = int(len(dataDict[trial][f'T{trial}_roiFeatures'])/3)
-        rednessOfROIs = np.zeros((numROIs,1))
-        roiFeatureDict = dataDict[trial][f'T{trial}_roiFeatures']
-        for roi in range(numROIs):
-            rednessOfROIs[roi] = roiFeatureDict[f'roi{roi+1}_redAvg']
-        print(f'Red Acquired for {len(rednessOfROIs)} ROIs')
-        roiRedness.append(rednessOfROIs)
-        if nCycles>1:
-            trialTrace = []
-            voltageSignals = glob.glob(trialPath+'/TSeries*VoltageRecording*.csv')
-            for cycleIDX in range(nCycles):
-                ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent] #downsampling bc fps = 30, but voltage sampled 10000 hz
-                rawTrace = np.array(dataDict[trial][f'cycle{cycleIDX}_traces'])
-                frameLoss = 25
-                if ventilatorTrace.shape[0] == rawTrace.shape[1]:
-                    rawTracesPadded = np.pad(rawTrace, ((0,0),(0,frameLoss)), mode='constant', constant_values=np.nan)
-                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,frameLoss), mode='constant', constant_values=np.nan)
+        gCaMPOnly = dataDict[trial][f'T{trial}_roiFeatures']['gCaMP_only_rois'] 
+        colabeledROIs = dataDict[trial][f'T{trial}_roiFeatures']['colabeled_rois']
+        rois = np.unique(np.stack([colabeledROIs, gCaMPOnly]))
+        
+        #iterate through registered cycle traces
+        trialTraceArray = []
+        for cycleIDX in range(nCycles):
+            intercycleinterval = 25
+            rawROIs = np.array(dataDict[trial][f'cycle{cycleIDX}_traces'])
+            
+            #concatenating ventialtor is synced to microscope we concatenat trials with vent signal as last trace
+            if stimFrame == 'voltage':
+                fps = fpsPerTrial[trial]
+                ventilatorSamplingRate = 10000 #will read xml in future to retrieve this, but this usually is pretty consistent
+                downSampleVent = round(ventilatorSamplingRate/fps) #so for a 29.94 Hz recording this will sample vent trace every 334th frame
+                voltageSignals = glob.glob(trialPath+'/TSeries*VoltageRecording*.csv')
+                ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent]
+                if ventilatorTrace.shape[0] == rawROIs.shape[1]:
+                    rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
+                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)
                 else:
-                    rawTracesPadded = np.pad(rawTrace, ((0,0),(0,frameLoss)), mode='constant', constant_values=np.nan)
-                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,frameLoss), mode='constant', constant_values=np.nan)[1:]
-                    
-                cycleTrace =rawTracesPadded       
-                try:
-                    addToTraces = np.vstack([cycleTrace, voltageTracePadded])
-                    trialTrace.append(addToTraces)
-                except:
-                    #if cycle number is different from other trials break loop
-                    print('Trial with unexpected number of cycles detected, breaking analysis')
-                    break
-            trialTrace = np.hstack(trialTrace).T
+                    print('Sampling is off by 1')
+                    rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
+                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
+                addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
+                trialTraceArray.append(addToTraces)
+            else: #if manually recorded stim frame (it is not split into trials if it is this case)
+                trialTraceArray.append(rawROIs)
+            trialTrace = np.hstack(trialTraceArray).T
             traceDict[trial] = trialTrace
-        else:
-            trialTrace = np.hstack([
-                np.array(dataDict[trial]['cycle0_traces']),
-                (((pd.read_csv(voltageSignals[0]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent]
-                ])
-            traceDict[trial] =  trialTrace
-            traceDict[f'T{trial}_roiRedness'] = roiRedness
+            traceDict[f'T{trial}_roiOrder'] = rois
     return traceDict
 
 def compare_all_ROIs(conditionIDX, trial, conditions, traces):
@@ -308,12 +300,14 @@ if __name__=='__main__':
                 expmtConditions = expmtNotes['stim_type']
                 nTrials = len(expmtConditions)
                 nConditions = len(np.unique(expmtConditions))
-                traces = compress_traces(expmt, dataDict)
-                print('Traces extracted, now generating plots...')
-                for trialSlice in range(0, nTrials, nConditions):
-                    print(f'Generating Plots for trials {trialSlice} through {trialSlice + nConditions}')
-                    summerize_experiment(expmt, trialSlice+1, traces)
-                print('Saved Plots...')
+                traces = sync_traces(expmt, dataDict)
+                with open(expmt+'/syncTrialTraces.pkl', 'rb') as f:
+                    traces = pickle.dump(traces, f)
+                # print('Trialized traces extracted, now generating plots...')
+                # for trialSlice in range(0, nTrials, nConditions):
+                #     print(f'Generating Plots for trials {trialSlice} through {trialSlice + nConditions}')
+                #     summerize_experiment(expmt, trialSlice+1, traces)
+                # print('Saved Plots...')
                 # break #only work with 5-7 for now...
         else:
             print('Experiment not processed yet')
