@@ -245,12 +245,14 @@ def extract_roi_traces(expmtPath):
                     cycleFeatures[f'cycle{cycleIDX}_traces'] = cycleTrace #raw unmodified traces
                 cycleFeatures[f'T{trialCounter}_roiFeatures'] = roiFeatures
                 dataDict[trialCounter] = cycleFeatures
+                dataDict[f'T{trialCounter}_masksIM'] = masksIM
+                dataDict[f'T{trialCounter}_outlinesIM'] = outlineIM
                 trialCounter += 1
         else:
             print('No ROIs segmented yet')
     return dataDict
     
-#%
+#%%
 if __name__=='__main__':
     dataFrom = [
         'U:/expmtRecords/Lucas*',
@@ -282,3 +284,70 @@ if __name__=='__main__':
                 pickle.dump(dataDict, f)
 
 # %%
+for expmtPath in expmtRecords:
+    trialPaths = glob.glob(expmtPath+'/TSeries*')    
+    redZStack = glob.glob(expmtPath+'/ZSeries*/ZSeries*Ch1*.tif')[0]
+    trialCounter = 0
+    dataDict = {}
+    numSegmentations = glob.glob(expmtPath+f'/cellCountingTiffs/*.npy')
+
+    try:
+        expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
+        
+    except IndexError:
+        print('Need to create expmtNotes for experiment! exiting...')
+
+    slicePerTrial = expmtNotes['slice_label'].values
+    lungLabel = expmtNotes['lung_label'].values[0]
+    if lungLabel == 'WGA594':
+        wgaStack = tif.imread(redZStack)
+
+    with open(expmtPath+'/expmtTraces.pkl', 'rb') as f:
+        dataDict = pickle.load(f)
+    for trial in dataDict.keys():
+        segmentationUsed = slicePerTrial[trial]
+        masksNPY = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{segmentationUsed}_seg.npy')
+        registeredTiffs_ch1 = glob.glob(trialPaths[trial]+'/rT*C*Ch1.tif')
+        registeredTiffs_ch2 = glob.glob(trialPaths[trial]+'/rT*C*Ch2.tif')
+        print(masksNPY)
+
+        #Load and Sort ROIs
+        segmentationLoaded = np.load(masksNPY[0], allow_pickle=True).item()
+        masks = segmentationLoaded['masks']
+        outlines = segmentationLoaded['outlines']
+        colabeledROIs = np.unique(masks[1,:,:])[1:]
+        gCaMPOnly = np.unique(masks[2,:,:])
+        masks = masks[1,:,:] + masks[2,:,:] #extracting all gCaMP+ cells
+        resolution = masks.shape
+        outlines = outlines[1,:,:] + outlines[2,:,:]
+
+        #generate mean image for roi view
+        loadedTif = tif.imread(registeredTiffs_ch2[0])
+        mIM = np.nanmean(loadedTif, axis=0)
+        masksIM = np.zeros((3, masks.shape[0], masks.shape[1]))
+        masksIM[1,:,:] = masks
+        masksIM[0,:,:] = np.power(   mIM/np.max(mIM-20) , .72)
+        masksIM[2,:,:] = np.power(   mIM/np.max(mIM-20) , .72)
+        
+        #generate roi outlines over WGA image to view WGA+ cells
+        outlineIM = np.zeros((3,masks.shape[0], masks.shape[1]))
+        outlineIM[0,:,:] = outlines>0
+        outlineIM[2,:,:] = outlines>0
+        if lungLabel == 'WGA594':
+            rmIM =  wgaStack[segmentationUsed,:,:]
+        else: #if trial_ch1 is the red image
+            rmIM = tif.imread(registeredTiffs_ch1[0]) #only the first cycle will be used since brightest
+            rmIM = np.nanmean(rmIM, axis=0)
+        outlineIM[1,:,:] = np.power(   rmIM/np.max(rmIM-20) , .52)
+
+        plt.figure()
+        plt.imshow(np.permute_dims(outlineIM, (1,2,0)))
+        plt.show()
+        plt.figure()
+        plt.imshow(np.permute_dims(masksIM, (1,2,0)))
+        plt.show()
+        dataDict[f'T{trialCounter}_masksIM'] = masksIM
+        dataDict[f'T{trialCounter}_outlinesIM'] = outlineIM
+    with open(expmtPath+'/expmtTraces2.pkl', 'wb') as f:
+        pickle.dump(dataDict, f)
+
