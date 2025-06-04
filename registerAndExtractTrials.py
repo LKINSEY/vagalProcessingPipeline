@@ -149,7 +149,7 @@ def extract_roi_traces(expmtPath):
     print('Extracting:\n',expmt)
     pad = 25 
     trialPaths = glob.glob(expmtPath+'/TSeries*')    
-    redZStack = glob.glob(expmtPath+'/ZSeries/ZSeries*Ch1*.tif')[0]
+    redZStack = glob.glob(expmtPath+'/ZSeries*/ZSeries*Ch1*.tif')[0]
     trialCounter = 0
     dataDict = {}
     numSegmentations = glob.glob(expmtPath+f'/cellCountingTiffs/*.npy')
@@ -260,7 +260,7 @@ if __name__=='__main__':
         'U:/expmtRecords/res_galvo/Lucas*',
         'U:/expmtRecords/mech_galvo/Lucas*',
         ]
-    expmtRecords = glob.glob(dataFrom[2])
+    expmtRecords = glob.glob(dataFrom[3])
     regParams = {
         'maxShifts': (25,25),
         'frames_per_split': 1000, 
