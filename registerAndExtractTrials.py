@@ -280,7 +280,10 @@ if __name__=='__main__':
         #insert cellpose command here
         dataDict = extract_roi_traces(expmt)
         if dataDict:
-            with open(expmt+'/expmtTraces.pkl', 'wb') as f:
-                pickle.dump(dataDict, f)
+            if not dataDict[1]:
+                print('Processing Error - not writing pickle')
+            else:
+                with open(expmt+'/expmtTraces.pkl', 'wb') as f:
+                    pickle.dump(dataDict, f)
 
 # %%
