@@ -12,7 +12,7 @@ import jnormcorre.motion_correction
 import jnormcorre.utils.registrationarrays as registrationarrays
 # run in dataAnalysis env
 
-def register_tSeries(rawData, regParams, compareRaw=False):
+def register_tSeries(rawData, regParams, expmtPath, compareRaw=False):
     max_shifts = regParams['maxShifts']
     frames_per_split = regParams['frames_per_split']
     num_splits_to_process_rig = regParams['num_splits_to_process_rig']
@@ -23,7 +23,10 @@ def register_tSeries(rawData, regParams, compareRaw=False):
     overlaps = regParams['overlaps']
     max_deviation_rigid = regParams['max_deviation_rigid']
 
-    template = np.nanmean(rawData[:,:,:], axis=0) #use mean image to register
+    if 'mech_galvo' in expmtPath:
+        template = np.nanmean(rawData[:5, :,:], axis=0)
+    else:
+        template = np.nanmean(rawData[:,:,:], axis=0) #use mean image to register
 
     #template used in motion corrector object, which
     corrector = jnormcorre.motion_correction.MotionCorrect(rawData, max_shifts=max_shifts, frames_per_split=frames_per_split,
@@ -88,6 +91,7 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
     return annTiff
 
 def register_trials(expmtPath, regParams):
+    print('Registering:\n', expmtPath)
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
     zSeriesPathGCaMP = glob.glob(expmtPath+'/ZSeries*/*Ch2*.tif')[0]
@@ -108,7 +112,7 @@ def register_trials(expmtPath, regParams):
             for cycleIDX in range(len(trialCycles_ch1)):
                 print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
                 cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
-                registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams)
+                registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath)
                 correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>59000, np.nan, registeredCycle_ch2[:])
                 mIM = np.nanmean(correctedRegisteredCycle_ch2, axis=0)    
                 trialSlice = slices[trialIDX]                
@@ -122,9 +126,9 @@ def register_trials(expmtPath, regParams):
                     gcampSlice = gcampZStack[trialSlice,:,:]
                     resolution = gcampSlice.shape
                     correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch2.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
-                elif expmtNotes['lung_label'].values[0] == 'WGATR': #uses mean trail ch1 to find WGA
+                else: #uses mean trail ch1 to find WGA
                     cycleTiff_ch1 = tif.imread(trialCycles_ch1[cycleIDX])
-                    registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams)
+                    registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams, expmtPath)
                     correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>59000,np.nan, registeredCycle_ch1[:])
                    
                     tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
@@ -142,14 +146,14 @@ def register_trials(expmtPath, regParams):
                     _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 5, annTiffFN, resolution)
                 tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
         else:
-            print(f'Trial {trialCounter} is registered!')
+            print(f'\rTrials Registered!', end='', flush=True)
         trialCounter+=1
 
 def extract_roi_traces(expmtPath):
-    print('Extracting:\n',expmt)
+    print('\nExtracting:\n',expmt, flush=False)
     pad = 25 
     trialPaths = glob.glob(expmtPath+'/TSeries*')    
-    redZStack = glob.glob(expmtPath+'/ZSeries/ZSeries*Ch1*.tif')[0]
+    redZStack = glob.glob(expmtPath+'/ZSeries*/ZSeries*Ch1*.tif')[0]
     trialCounter = 0
     dataDict = {}
     numSegmentations = glob.glob(expmtPath+f'/cellCountingTiffs/*.npy')
@@ -171,11 +175,14 @@ def extract_roi_traces(expmtPath):
     else:
         if len(numSegmentations)>0: #make sure segmentations exist
             for trial in trialPaths:
-
                 #get our paths squared away
                 registeredTiffs_ch1 = glob.glob(trial+'/rT*C*Ch1.tif')
                 registeredTiffs_ch2 = glob.glob(trial+'/rT*C*Ch2.tif')
                 segmentationUsed = slicePerTrial[trialCounter]
+                if segmentationUsed == -1:
+                    print('Skipping trial because zstack error')
+                    trialCounter += 1
+                    continue
                 masksNPY = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{segmentationUsed}_seg.npy')
                 print(masksNPY)
 
@@ -208,7 +215,7 @@ def extract_roi_traces(expmtPath):
                 #some experiments are chopped up into cycles, others are not, this accounts for it
                 rois = np.unique(masks)[1:] 
                 cycleFeatures = {}
-                for cycleIDX in range(len(registeredTiffs_ch1)):
+                for cycleIDX in range(len(registeredTiffs_ch2)):
                     greenCycle = tif.imread(registeredTiffs_ch2[cycleIDX])
 
                     if greenCycle.shape[1] != resolution[0]: #fit resolution of stack so rois match resolution of tif
@@ -230,8 +237,8 @@ def extract_roi_traces(expmtPath):
                             xROI, yROI = (masks==roi).nonzero()
                             maxX = np.max(xROI)+pad; minX = np.min(xROI)-pad ; xDiameter = maxX-minX
                             maxY = np.max(yROI)+pad; minY = np.min(yROI)-pad ; yDiameter = maxY - minY
-                            rroiWindow = rmIM[:, minY:maxY,minX:maxX]
-                            groiWindow = mIM[:, minY:maxY,minX:maxX]
+                            rroiWindow = rmIM[ minY:maxY,minX:maxX]
+                            groiWindow = mIM[ minY:maxY,minX:maxX]
                             redCell = rmIM * (masks==roi)
                             avgRed = np.nanmean(redCell, axis=(0,1))
                             roiFeatures[f'roi{roi}_redAvg'] = avgRed
@@ -243,7 +250,7 @@ def extract_roi_traces(expmtPath):
                         roiTrace = np.nanmean(roiNAN, axis=(1,2))
                         cycleTrace.append(roiTrace)
                     cycleFeatures[f'cycle{cycleIDX}_traces'] = cycleTrace #raw unmodified traces
-                cycleFeatures[f'T{trialCounter}_roiFeatures'] = roiFeatures
+                    cycleFeatures[f'T{trialCounter}_roiFeatures'] = roiFeatures
                 dataDict[trialCounter] = cycleFeatures
                 dataDict[f'T{trialCounter}_masksIM'] = masksIM
                 dataDict[f'T{trialCounter}_outlinesIM'] = outlineIM
@@ -260,7 +267,7 @@ if __name__=='__main__':
         'U:/expmtRecords/res_galvo/Lucas*',
         'U:/expmtRecords/mech_galvo/Lucas*',
         ]
-    expmtRecords = glob.glob(dataFrom[2])
+    expmtRecords = glob.glob(dataFrom[3])
     regParams = {
         'maxShifts': (25,25),
         'frames_per_split': 1000, 
