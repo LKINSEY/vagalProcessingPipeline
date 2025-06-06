@@ -36,6 +36,8 @@ def sync_traces(expmtPath, dataDict):
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     traceDict = {}
     for trial in range(len(trialPaths)):
+        if trial not in dataDict.keys():
+            continue
         print(f'\rSyncing traces for trial {trial+1}/{len(trialPaths)}', end='',flush=True)
         stimFrame = stimFrames[trial]
         trialPath = trialPaths[trial]
@@ -75,49 +77,82 @@ def sync_traces(expmtPath, dataDict):
         trialTrace = np.hstack(trialTraceArray).T
         traceDict[trial] = trialTrace
         traceDict[f'T{trial}_roiOrder'] = rois
-    print(f'\r{expmtPath} synced!', end='', flush=True)
+    print(f'\r{expmtPath} synced!\n', end='', flush=True)
     return traceDict 
 
-def compare_all_ROIs(conditionIDX, trial, conditions, traces):
-
-
-
-
-    
-    trial = trial-1 #because it goes in as +1 from init script
-    actualTrial = trial+conditionIDX
-    trialTraces = traces[trial+conditionIDX]
-    voltageTrace = trialTraces[:,-1]
-    conditionString = conditions[actualTrial]#expmtNotes['stim_type'].values[actualTrial]
-    
-    stimFrame = find_stim_frame(voltageTrace, conditionString)
-    if stimFrame is None:
-        print('No Stimulation detected during this trial')
-        return
-    else:
-        if stimFrame >=150:
-            beggining = 150
-        else:
-            beggining = len(voltageTrace[:stimFrame])
-        
-        if stimFrame + 300 > len(voltageTrace):
-            end = len(voltageTrace) - stimFrame
-        else:
-            end = 300
-        fig, ax  = plt.subplots()
-        f0 = np.nanmean(trialTraces[stimFrame-beggining:stimFrame,:]) #mean is the average frames before the mechanical challenge
-        plottingTrace = trialTraces[stimFrame-beggining: stimFrame+end,:]
-        dFF = (plottingTrace - f0)/f0
-
+def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
+    xlabel = notes['frame_rate'][trial]
+    if conditionStr == 'baseline':
+        rawF = traces[trial].T
+        f0 = np.nanmean(rawF[:40])
+        dFF = (rawF - f0)/f0
         normalizedDFF = (dFF - np.nanmean(dFF, axis=0)) / np.nanstd(dFF, axis=0)
-        ax.imshow(normalizedDFF.T, aspect = 'auto', interpolation='none', cmap='Greens')
+
+        roiLabels = traces[f'T{trial}_roiOrder']
+        fig, ax = plt.subplots()
+        fig.suptitle(f'Trial {trial}\n{conditionStr}')
+        ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
+        ax.set_yticks(np.arange(len(roiLabels)))
+        ax.set_yticklabels(roiLabels)
         ax.get_xaxis().set_visible(False)
-        ax.set_title(f'{conditionString}')
+        ax.set_xlabel(xlabel)
+        fig.tight_layout()
+    else:
+        if notes['stim_frame'].values[0]=='voltage':
+            stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
+        else:
+            stimFrame = notes['stim_frame'][trial]
+        rawF = traces[trial].T
+        #TODO: will need to generalize this for any type of 2p experiment...
+        if 'mech_galvo' in expmt:
+            stepping = 5
+            if stimFrame>=21:
+                beggining = 20
+            else:
+                beggining = len(rawF[:stimFrame])
+            if stimFrame+30 > rawF.shape[1]:
+                end = rawF.shape[1] - stimFrame
+            else:
+                end = 30
+        else:
+            stepping = 50
+            voltageTrace = rawF[-1,:]
+            if stimFrame >=150:
+                beggining = 150
+            else:
+                beggining = len(voltageTrace[:stimFrame])
+            
+            if stimFrame + 300 > len(voltageTrace):
+                end = len(voltageTrace) - stimFrame
+            else:
+                end = 300
+
+        f0 = np.nanmean(rawF[:,beggining:stimFrame], axis=1) ##
+        f0 = np.reshape(f0, (len(f0),1))
+        plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
+        print('beggining', beggining, 'end', end)
+        dFF = (plottingF - f0)/f0
+        normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
+        roiLabels = traces[f'T{trial}_roiOrder']
+        roiSteps = round(len(roiLabels)*.1)
+
+        fig, ax = plt.subplots()
+        fig.suptitle(f'Trial {trial}\n{conditionStr}')
+        im = ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
         ax.axvline(beggining, color='black')
+
+        ax.set_yticks(np.arange(0,len(roiLabels), roiSteps))
+        ax.set_yticklabels(roiLabels[::roiSteps])
+
+        xAxis = np.arange(-beggining, end,stepping)
+        ax.set_xticklabels(xAxis)
+        ax.set_xticks(np.arange(0,normalizedDFF.shape[1], stepping))
+        ax.get_xaxis().set_visible(True)
+        fig.colorbar(im, ax=ax)
+        fig.supxlabel(f'Frames (fps={xlabel})')
+        fig.supylabel('ROI Num')
         fig.tight_layout()
-        fig.supylabel('ROI Number')
-        ax.set_xlabel('Time (30 fps)')
-        fig.tight_layout()
+
     return fig
 
 def summerize_experiment(expmtPath, dataDict):
@@ -136,7 +171,7 @@ def summerize_experiment(expmtPath, dataDict):
         ect...
     ])
     '''
-    # traces = sync_traces(expmtPath, dataDict)
+    traces = sync_traces(expmtPath, dataDict)
     expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
     slicePerTrial = expmtNotes['slice_label'].values
     trialSets = np.unique(slicePerTrial)
@@ -147,7 +182,7 @@ def summerize_experiment(expmtPath, dataDict):
     nTrials = len(trialPaths)
     trialIndices = np.arange(nTrials)
     # setCounter = 1
-    print('Plotting...')
+    print('Plotting...\n')
     for trialSet in trialSets:
         trialsInSet = trialPaths[slicePerTrial==trialSet]
         segFN = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{trialSet}_seg.npy')[0]
@@ -191,11 +226,12 @@ def summerize_experiment(expmtPath, dataDict):
         fig.suptitle(f'Slice {trialSet} Segmentations')
         # return
         for trialIDX in trialIndices[slicePerTrial==trialSet]:
-            print(f'\rTrial: {trialIDX}\n',
-                  f'\rSlice: {trialSet}\n',
-                  f'\rCondition: {conditions[trialIDX]}\n',
-                   end='',flush=True)
-            fig = compare_all_ROIs(conditions[trialIDX],)
+            # print(f'\rTrial: {trialIDX}\n',
+            #       f'\rSlice: {trialSet}\n',
+            #       f'\rCondition: {conditions[trialIDX]}\n',
+            #        end='',flush=True)
+            fig = compare_all_ROIs(conditions[trialIDX],trialIDX,traces, expmtNotes, expmt)
+        
         return
             
             
@@ -304,8 +340,8 @@ if __name__=='__main__':
             if os.path.exists(expmt+'/figures/'):
                 print('Figures already generated for this experiment')
             else:
-                with open(expmt+'/expmtTraces.pkl', 'rb') as f:
-                    dataDict = pickle.load(f)
+                # with open(expmt+'/expmtTraces.pkl', 'rb') as f:
+                #     dataDict = pickle.load(f)
                 # traces = sync_traces(expmt, dataDict)
                 plt.close('all')
                 summerize_experiment(expmt, dataDict)
