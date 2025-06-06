@@ -62,16 +62,20 @@ def sync_traces(expmtPath, dataDict):
                 ventilatorSamplingRate = 10000 #will read xml in future to retrieve this, but this usually is pretty consistent
                 downSampleVent = round(ventilatorSamplingRate/fps) #so for a 29.94 Hz recording this will sample vent trace every 334th frame
                 voltageSignals = glob.glob(trialPath+'/TSeries*VoltageRecording*.csv')
-                ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent]
-                if ventilatorTrace.shape[0] == rawROIs.shape[1]:
-                    rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
-                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)
+                if expmtNotes['stim_type'].values[trial]=='baseline':
+                    trialTraceArray.append(rawROIs)
                 else:
-                    print('Sampling is off by 1')
-                    rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
-                    voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
-                addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
-                trialTraceArray.append(addToTraces)
+                    ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent]
+                    if ventilatorTrace.shape[0] == rawROIs.shape[1]:
+                        rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
+                        voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)
+                    else:
+                        print(f'\nTrial {trial+1} Sampling is off by 1\n')
+                        rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
+                        voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
+                        print('TESTING', rawTracesPadded.shape, voltageTracePadded.shape)
+                    addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
+                    trialTraceArray.append(addToTraces)
             else: #if manually recorded stim frame (it is not split into trials if it is this case)
                 trialTraceArray.append(rawROIs)
         trialTrace = np.hstack(trialTraceArray).T
@@ -79,7 +83,7 @@ def sync_traces(expmtPath, dataDict):
         traceDict[f'T{trial}_roiOrder'] = rois
     print(f'\r{expmtPath} synced!\n', end='', flush=True)
     return traceDict 
-
+#%%
 def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
     xlabel = notes['frame_rate'][trial]
     if conditionStr == 'baseline':
@@ -362,7 +366,6 @@ if __name__=='__main__':
                     dataDict = pickle.load(f)
                 plt.close('all')
                 summerize_experiment(expmt, dataDict)
-
 
                 print('Saved Plots...')
         else:
