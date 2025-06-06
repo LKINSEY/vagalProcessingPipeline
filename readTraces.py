@@ -138,7 +138,8 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
         roiLabels = traces[f'T{trial}_roiOrder']
         roiSteps = round(len(roiLabels)*.1)
-
+        if roiSteps == 0:
+            roiSteps = 1
         fig, ax = plt.subplots()
         fig.suptitle(f'Trial {trial}\n{conditionStr}')
         im = ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
