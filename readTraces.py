@@ -55,7 +55,6 @@ def sync_traces(expmtPath, dataDict):
         for cycleIDX in range(nCycles):
             intercycleinterval = 25
             rawROIs = np.array(dataDict[trial][f'cycle{cycleIDX}_traces'])
-            
             #concatenating ventialtor is synced to microscope we concatenat trials with vent signal as last trace
             if stimFrame == 'voltage':
                 fps = fpsPerTrial[trial]
@@ -83,7 +82,7 @@ def sync_traces(expmtPath, dataDict):
         traceDict[f'T{trial}_roiOrder'] = rois
     print(f'\r{expmtPath} synced!\n', end='', flush=True)
     return traceDict 
-#%%
+
 def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
     xlabel = notes['frame_rate'][trial]
     if conditionStr == 'baseline':
@@ -288,7 +287,10 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, notes, gca
         conditionStr = conditions[condition]
         trial = trialIndices[condition]
         # trialROIs = traces[f'T{trial}_roiOrder']
-        rawF = traces[trial][:,roi].T #1D
+        try:
+            rawF = traces[trial][:,roi].T #1D
+        except IndexError:
+            print('Improper ROI count, redo processing')
         if conditionStr == 'baseline':
             f0 = np.nanmean(rawF[:round(len(rawF)/4)])
             dFF = (rawF - f0)/f0
