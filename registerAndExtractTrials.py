@@ -206,7 +206,8 @@ def extract_roi_traces(expmtPath):
                 outlineIM[0,:,:] = outlines>0
                 outlineIM[2,:,:] = outlines>0
                 if lungLabel == 'WGA594':
-                    rmIM =  wgaStack[segmentationUsed,:,:]
+                    annTiff = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{segmentationUsed}.tif')[0]
+                    rIM = np.nanmean(annTiff[0,:,:])
                 else: #if trial_ch1 is the red image
                     rmIM = tif.imread(registeredTiffs_ch1[0]) #only the first cycle will be used since brightest
                     rmIM = np.nanmean(rmIM, axis=0)
