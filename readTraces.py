@@ -247,7 +247,7 @@ def summerize_experiment(expmtPath, dataDict):
             plt.savefig(pdfSummary, format='pdf')
         
         trialsBool = slicePerTrial==trialSet
-        rois = np.arange(traces[firstTrialInSet].shape[1])
+        rois = np.arange(traces[firstTrialInSet].shape[1]-1) 
         for roi in rois:
             fig = analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, expmtNotes, gcampROIs, colabeledROIs)
             plt.savefig(pdfSummary, format='pdf')
