@@ -10,6 +10,7 @@ matplotlib.use('WebAgg') #display in web browser (requires a plt.show() and plt.
 import pandas as pd
 import os,glob, pickle
 from matplotlib.patches import Patch
+from pathlib import Path
 
 def sync_traces(expmtPath, dataDict):
     '''
@@ -72,7 +73,7 @@ def sync_traces(expmtPath, dataDict):
                         print(f'\nTrial {trial+1} Sampling is off by 1\n')
                         rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
                         voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
-                        print('TESTING', rawTracesPadded.shape, voltageTracePadded.shape)
+                        
                     addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
                     trialTraceArray.append(addToTraces)
             else: #if manually recorded stim frame (it is not split into trials if it is this case)
@@ -103,8 +104,10 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
     else:
         if notes['stim_frame'].values[0]=='voltage':
             stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
+            sync = True
         else:
             stimFrame = notes['stim_frame'][trial]
+            sync = False
         rawF = traces[trial].T
         #TODO: will need to generalize this for any type of 2p experiment...
         if 'mech_galvo' in expmt:
@@ -118,24 +121,30 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             else:
                 end = 30
         else:
-            stepping = 50
-            voltageTrace = rawF[-1,:]
+            refTrace = rawF[-1,:]
             if stimFrame >=150:
                 beggining = 150
             else:
-                beggining = len(voltageTrace[:stimFrame])
+                beggining = len(refTrace[:stimFrame])
             
-            if stimFrame + 300 > len(voltageTrace):
-                end = len(voltageTrace) - stimFrame
+            if stimFrame + 300 > len(refTrace):
+                end = len(refTrace) - stimFrame
             else:
                 end = 300
-
-        f0 = np.nanmean(rawF[:,beggining:stimFrame], axis=1) ##
-        f0 = np.reshape(f0, (len(f0),1))
-        plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
-        print('beggining', beggining, 'end', end)
-        dFF = (plottingF - f0)/f0
-        normalizedDFF = (dFF[:-1] - np.nanmean(dFF[:-1], axis=0))/ (np.nanstd(dFF[:-1], axis=0))
+        if sync:
+            f0 = np.nanmean(rawF[:-1,beggining:stimFrame], axis=1) ##
+            f0 = np.reshape(f0, (len(f0),1))
+            plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
+            dFF = (plottingF[:-1] - f0)/f0
+            normalizedDFF = (dFF[:-1] - np.nanmean(dFF[:-1], axis=0))/ (np.nanstd(dFF[:-1], axis=0))
+            ventTrace = ((rawF[-1,stimFrame - beggining:stimFrame+end])+.5)*4
+            normalizedDFF = np.vstack([normalizedDFF,ventTrace])
+        else:
+            f0 = np.nanmean(rawF[:,beggining:stimFrame], axis=1) ##
+            f0 = np.reshape(f0, (len(f0),1))
+            plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
+            dFF = (plottingF - f0)/f0
+            normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
         roiLabels = traces[f'T{trial}_roiOrder']
         roiSteps = round(len(roiLabels)*.1)
         if roiSteps == 0:
@@ -197,13 +206,18 @@ def summerize_experiment(expmtPath, dataDict):
         colabeledROIs = np.unique(masks[1,:,:])[1:]
         gcampCenters = [center_of_mass(masks[2,:,:]==roi) for roi in gcampROIs]
         colabeledCenters = [center_of_mass(masks[1,:,:]==roi) for roi in colabeledROIs]
-        print('/n ', trialIndices[slicePerTrial==trialSet])
         firstTrialInSet = trialIndices[slicePerTrial==trialSet][0]
-        if os.path.exists(expmt+'/figures/'):
-            pdfSummary = PdfPages(expmtPath+f'/figures/slice{trialSet}_summary.pdf')
-        else:
-            os.mkdir(expmt+'/figures/')
-            pdfSummary = PdfPages(expmtPath+f'/figures/slice{trialSet}_summary.pdf')
+
+        # saveFN = Path(expmtPath+f'/figures/slice{trialSet}_summary.pdf')
+        # if os.path.exists(expmt+'/figures/'):
+        #     saveFN = str(Path(expmtPath+f'/figures/slice{trialSet}_summary.pdf')).replace('\\', '/')
+        #     pdfSummary = PdfPages(saveFN)
+        # else:
+        figureDR = Path(expmtPath)/'figures'
+        figureDR.mkdir(parents=True, exist_ok=True)
+        saveFN = str(figureDR / f'slice{trialSet}_summary.pdf')
+        pdfSummary = PdfPages(saveFN)
+
         maskIM = dataDict[f'T{firstTrialInSet}_masksIM']
         if maskIM.shape[0] == 3:
             maskIM = np.permute_dims(maskIM, (1,2,0))
@@ -223,36 +237,44 @@ def summerize_experiment(expmtPath, dataDict):
             Patch(facecolor='#FF4500', edgecolor='#FF4500', label='WGA+'),
             Patch(facecolor='black', edgecolor='black', label='WGA-')
         ]
-        
-        ax.set_title('Mask Overlayed on GCaMP+ Cells')
-        ax.legend(handles=textColors, loc='upper right', title='ROI Colors')
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        fig.suptitle(f'Slice {trialSet} Segmentations')
-        plt.savefig(pdfSummary, format='pdf')
+        try:
+            ax.set_title('Mask Overlayed on GCaMP+ Cells')
+            ax.legend(handles=textColors, loc='upper right', title='ROI Colors')
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            fig.suptitle(f'Slice {trialSet} Segmentations')
+            plt.savefig(pdfSummary, format='pdf')
+            # pdfSummary.savefig(fig)#, format='pdf')
 
 
-        fig, ax = plt.subplots()
-        ax.imshow(outlinesIM)
-        ax.axis='off'
-        ax.set_title('ROI Outlines Overlayed on WGA Channel')
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        fig.suptitle(f'Slice {trialSet} Segmentations')
-        plt.savefig(pdfSummary, format='pdf')
-        
-        
-        for trialIDX in trialIndices[slicePerTrial==trialSet]:
-            fig = compare_all_ROIs(conditions[trialIDX],trialIDX,traces, expmtNotes, expmt)
+            fig, ax = plt.subplots()
+            ax.imshow(outlinesIM)
+            ax.axis='off'
+            ax.set_title('ROI Outlines Overlayed on WGA Channel')
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            fig.suptitle(f'Slice {trialSet} Segmentations')
             plt.savefig(pdfSummary, format='pdf')
-        
-        trialsBool = slicePerTrial==trialSet
-        rois = np.arange(traces[firstTrialInSet].shape[1]-1) 
-        for roi in rois:
-            fig = analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, expmtNotes, gcampROIs, colabeledROIs)
-            plt.savefig(pdfSummary, format='pdf')
-        
-        pdfSummary.close()
+            # pdfSummary.savefig(fig)
+            
+            
+            for trialIDX in trialIndices[slicePerTrial==trialSet]:
+                fig = compare_all_ROIs(conditions[trialIDX],trialIDX,traces, expmtNotes, expmt)
+                plt.savefig(pdfSummary, format='pdf')
+                # pdfSummary.savefig(fig)
+            
+            trialsBool = slicePerTrial==trialSet
+            rois = np.arange(traces[firstTrialInSet].shape[1]-1) 
+            for roi in rois:
+                fig = analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, expmtNotes, gcampROIs, colabeledROIs)
+                plt.savefig(pdfSummary, format='pdf')
+                # pdfSummary.savefig(fig)
+                
+        except OSError:
+            pdfSummary.close() #make sure pdf closes
+            print('Path Error')
+
+        pdfSummary.close() #make sure pdf closes
             
 def find_stim_frame(ventilatorTrace, condition):
     edges = ventilatorTrace - np.roll(ventilatorTrace, -1)
@@ -272,38 +294,40 @@ def find_stim_frame(ventilatorTrace, condition):
     return stimFrame[0]
 
 
-def analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, notes, gcampROIs, colabeledROIs):
+def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, notes, gcampROIs, colabeledROIs):
     nTrials = len(trialsBool)
     trialIndices = np.arange(nTrials)[trialsBool]
     nConditions = len(np.where(trialsBool==True)[0])
     conditions = notes['stim_type'].values[trialsBool]
     frameRate = notes['frame_rate'].values[trialsBool]
     fig, ax = plt.subplots(nConditions, 1, sharex=False, constrained_layout=True)
-    if roi in gcampROIs:
-        wgaPositive = False
-    else:
-        wgaPositive = True
+
     for condition in range(nConditions):
         fps = frameRate[condition]
         conditionStr = conditions[condition]
         trial = trialIndices[condition]
-        # trialROIs = traces[f'T{trial}_roiOrder']
+        trialROIs = traces[f'T{trial}_roiOrder']
+        roi = trialROIs[roiChoice]
+        if roi in gcampROIs:
+            wgaPositive = False
+        else:
+            wgaPositive = True
         try:
-            rawF = traces[trial][:,roi].T #1D
+            rawF = traces[trial][:,roiChoice].T #1D
         except IndexError:
             print('Improper ROI count, redo processing')
         if conditionStr == 'baseline':
             f0 = np.nanmean(rawF[:round(len(rawF)/4)])
             dFF = (rawF - f0)/f0
             # normalizedDFF = (dFF - np.nanmean(dFF)) / np.nanstd(dFF)
-            fig.suptitle(f'Trial {trial}\n{conditionStr}')
+            fig.suptitle(f'Trial {trial}\n ROI {roi}')
             if wgaPositive:
                 ax[condition].plot(dFF, color='#32CD32')
             else:
                 ax[condition].plot(dFF, color='#8A2BE2')
             
-            ax[condition].axhline(0, color='black')
-            ax[condition].set_ylabel(f'{conditionStr}\n{fps}')
+            ax[condition].axhline(0, color='black', alpha=0.5)
+            ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
         else:
             if notes['stim_frame'].values[0]=='voltage':
                 stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
@@ -341,7 +365,7 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, notes, gca
                 ax[condition].plot(xAxis, dFF, color='#8A2BE2')
             ax[condition].axhline(0, color='black', alpha=0.2)
             ax[condition].axvline(0, color='black', alpha=0.2)
-            ax[condition].set_ylabel(f'Condition: {conditionStr}\n Frame Rate: {fps}')
+            ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
             ax[condition].set_xlim([-beggining, end])
 
 
