@@ -135,7 +135,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
         print('beggining', beggining, 'end', end)
         dFF = (plottingF - f0)/f0
-        normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
+        normalizedDFF = (dFF[:-1] - np.nanmean(dFF[:-1], axis=0))/ (np.nanstd(dFF[:-1], axis=0))
         roiLabels = traces[f'T{trial}_roiOrder']
         roiSteps = round(len(roiLabels)*.1)
         if roiSteps == 0:
@@ -348,7 +348,7 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, notes, gca
 
 
 
-#%
+#%%
 
 if __name__=='__main__':
     dataFrom = [
