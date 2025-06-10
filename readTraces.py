@@ -90,7 +90,10 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         rawF = traces[trial].T
         f0 = np.nanmean(rawF[:40])
         dFF = (rawF - f0)/f0
-        normalizedDFF = (dFF - np.nanmean(dFF, axis=0)) / np.nanstd(dFF, axis=0)
+        if dFF.shape[0] == 2:
+            normalizedDFF = dFF
+        else:
+            normalizedDFF = (dFF - np.nanmean(dFF, axis=0)) / np.nanstd(dFF, axis=0)
 
         roiLabels = traces[f'T{trial}_roiOrder']
         fig, ax = plt.subplots()
@@ -132,22 +135,28 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             else:
                 end = 300
         if sync:
-            f0 = np.nanmean(rawF[:-1,beggining:stimFrame], axis=1) 
-            f0 = np.reshape(f0, (len(traces[f'T{trial}_roiOrder']),1))
             if beggining == 0:
-                plottingF = rawF[:,beggining:stimFrame+end]
+                f0 = np.nanmean(rawF[:-1,beggining:stimFrame], axis=1) 
+                f0 = np.reshape(f0, (len(traces[f'T{trial}_roiOrder']),1))
+                plottingF = rawF[:-1,beggining:stimFrame+end]
                 ventTrace = ((rawF[-1,beggining:stimFrame+end])+.5)*4
                 xAxis = np.arange(-stimFrame, end,stepping)
                 vLine = stimFrame
             else:
-                plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
+                f0 = np.nanmean(rawF[:-1,stimFrame -beggining:stimFrame], axis=1)
+                f0 = np.reshape(f0, (len(traces[f'T{trial}_roiOrder']),1))
+                plottingF = rawF[:-1,stimFrame - beggining:stimFrame+end]
                 ventTrace = ((rawF[-1,stimFrame - beggining:stimFrame+end])+.5)*4
                 xAxis = np.arange(-beggining, end,stepping)
                 vLine = beggining
-            dFF = (plottingF[:-1] - f0)/f0
-            normalizedDFF = (dFF[:-1] - np.nanmean(dFF[:-1], axis=0))/ (np.nanstd(dFF[:-1], axis=0))
-            
-            normalizedDFF = np.vstack([normalizedDFF,ventTrace])
+            dFF = (plottingF - f0)/f0
+            print('dff',np.nanstd(dFF, axis=0))
+            if dFF.shape[0] == 2:
+                normalizedDFF = dFF*5
+                normalizedDFF = np.vstack([normalizedDFF,ventTrace])
+            else:
+                normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
+                normalizedDFF = np.vstack([normalizedDFF,ventTrace])
         else:
             f0 = np.nanmean(rawF[:,beggining:stimFrame], axis=1) ##
             f0 = np.reshape(f0, (len(f0),1))
