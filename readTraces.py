@@ -115,7 +115,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             if stimFrame>=21:
                 beggining = 20
             else:
-                beggining = len(rawF[:stimFrame])
+                beggining = -0
             if stimFrame+30 > rawF.shape[1]:
                 end = rawF.shape[1] - stimFrame
             else:
@@ -125,19 +125,28 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             if stimFrame >=150:
                 beggining = 150
             else:
-                beggining = len(refTrace[:stimFrame])
+                beggining = 0
             
             if stimFrame + 300 > len(refTrace):
                 end = len(refTrace) - stimFrame
             else:
                 end = 300
         if sync:
-            f0 = np.nanmean(rawF[:-1,beggining:stimFrame], axis=1) ##
-            f0 = np.reshape(f0, (len(f0),1))
-            plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
+            f0 = np.nanmean(rawF[:-1,beggining:stimFrame], axis=1) 
+            f0 = np.reshape(f0, (len(traces[f'T{trial}_roiOrder']),1))
+            if beggining == 0:
+                plottingF = rawF[:,beggining:stimFrame+end]
+                ventTrace = ((rawF[-1,beggining:stimFrame+end])+.5)*4
+                xAxis = np.arange(-stimFrame, end,stepping)
+                vLine = 0
+            else:
+                plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
+                ventTrace = ((rawF[-1,stimFrame - beggining:stimFrame+end])+.5)*4
+                xAxis = np.arange(-beggining, end,stepping)
+                vLine = beggining
             dFF = (plottingF[:-1] - f0)/f0
             normalizedDFF = (dFF[:-1] - np.nanmean(dFF[:-1], axis=0))/ (np.nanstd(dFF[:-1], axis=0))
-            ventTrace = ((rawF[-1,stimFrame - beggining:stimFrame+end])+.5)*4
+            
             normalizedDFF = np.vstack([normalizedDFF,ventTrace])
         else:
             f0 = np.nanmean(rawF[:,beggining:stimFrame], axis=1) ##
@@ -145,6 +154,8 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
             dFF = (plottingF - f0)/f0
             normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
+            xAxis = np.arange(-beggining, end,stepping)
+            
         roiLabels = traces[f'T{trial}_roiOrder']
         roiSteps = round(len(roiLabels)*.1)
         if roiSteps == 0:
@@ -152,12 +163,12 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         fig, ax = plt.subplots()
         fig.suptitle(f'Trial {trial}\n{conditionStr}')
         im = ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
-        ax.axvline(beggining, color='black')
+        ax.axvline(vLine, color='black')
 
         ax.set_yticks(np.arange(0,len(roiLabels), roiSteps))
         ax.set_yticklabels(roiLabels[::roiSteps])
 
-        xAxis = np.arange(-beggining, end,stepping)
+        
         ax.set_xticklabels(xAxis)
         ax.set_xticks(np.arange(0,normalizedDFF.shape[1], stepping))
         ax.get_xaxis().set_visible(True)
