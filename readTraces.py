@@ -115,7 +115,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             if stimFrame>=21:
                 beggining = 20
             else:
-                beggining = -0
+                beggining = 0
             if stimFrame+30 > rawF.shape[1]:
                 end = rawF.shape[1] - stimFrame
             else:
@@ -138,7 +138,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
                 plottingF = rawF[:,beggining:stimFrame+end]
                 ventTrace = ((rawF[-1,beggining:stimFrame+end])+.5)*4
                 xAxis = np.arange(-stimFrame, end,stepping)
-                vLine = 0
+                vLine = stimFrame
             else:
                 plottingF = rawF[:,stimFrame - beggining:stimFrame+end]
                 ventTrace = ((rawF[-1,stimFrame - beggining:stimFrame+end])+.5)*4
@@ -163,12 +163,12 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         fig, ax = plt.subplots()
         fig.suptitle(f'Trial {trial}\n{conditionStr}')
         im = ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
+        
         ax.axvline(vLine, color='black')
 
         ax.set_yticks(np.arange(0,len(roiLabels), roiSteps))
         ax.set_yticklabels(roiLabels[::roiSteps])
 
-        
         ax.set_xticklabels(xAxis)
         ax.set_xticks(np.arange(0,normalizedDFF.shape[1], stepping))
         ax.get_xaxis().set_visible(True)
@@ -349,7 +349,7 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
                 if stimFrame>=21:
                     beggining = 20
                 else:
-                    beggining = len(rawF[:stimFrame])
+                    beggining = 0
                 if stimFrame+30 > len(rawF):
                     end = len(rawF) - stimFrame
                 else:
@@ -359,25 +359,41 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
                 if stimFrame >=150:
                     beggining = 150
                 else:
-                    beggining = len(voltageTrace[:stimFrame])
+                    beggining = 0
                 
                 if stimFrame + 300 > len(voltageTrace):
                     end = len(voltageTrace) - stimFrame
                 else:
                     end = 300
-            xAxis = np.arange(-beggining, end)
-            f0 = np.nanmean(rawF[beggining:stimFrame])
-            plottingF = rawF[stimFrame - beggining:stimFrame+end]
-            dFF = (plottingF - f0)/f0
-            # normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
-            if wgaPositive:
-                ax[condition].plot(xAxis, dFF, color='#32CD32')
+            
+            if beggining == 0:
+                f0 = np.nanmean(rawF[0:stimFrame])
+                plottingF = rawF[beggining:stimFrame+end]
+                ax[condition].axvline(0, color='black', alpha=0.2)
+                xAxis = np.arange(-stimFrame, end)
+                dFF = (plottingF - f0)/f0
+                if wgaPositive:
+                    ax[condition].plot(xAxis, dFF, color='#32CD32')
+                else:
+                    ax[condition].plot(xAxis, dFF, color='#8A2BE2')
+                ax[condition].set_xlim([-stimFrame, end])
             else:
-                ax[condition].plot(xAxis, dFF, color='#8A2BE2')
+                f0 = np.nanmean(rawF[beggining:stimFrame])
+                plottingF = rawF[stimFrame - beggining:stimFrame+end]
+                ax[condition].axvline(0, color='black', alpha=0.2)
+                xAxis = np.arange(-beggining, end)
+                dFF = (plottingF - f0)/f0
+                if wgaPositive:
+                    ax[condition].plot(xAxis, dFF, color='#32CD32')
+                else:
+                    ax[condition].plot(xAxis, dFF, color='#8A2BE2')
+                ax[condition].set_xlim([-beggining, end])
+            
+
+            # normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
+
             ax[condition].axhline(0, color='black', alpha=0.2)
-            ax[condition].axvline(0, color='black', alpha=0.2)
             ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-            ax[condition].set_xlim([-beggining, end])
 
 
 
