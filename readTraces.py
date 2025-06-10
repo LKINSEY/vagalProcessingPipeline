@@ -90,7 +90,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         rawF = traces[trial].T
         f0 = np.nanmean(rawF[:40])
         dFF = (rawF - f0)/f0
-        if dFF.shape[0] == 2:
+        if dFF.shape[0] <= 2:
             normalizedDFF = dFF
         else:
             normalizedDFF = (dFF - np.nanmean(dFF, axis=0)) / np.nanstd(dFF, axis=0)
@@ -151,7 +151,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
                 vLine = beggining
             dFF = (plottingF - f0)/f0
             print('dff',np.nanstd(dFF, axis=0))
-            if dFF.shape[0] == 2:
+            if dFF.shape[0] <= 2:
                 normalizedDFF = dFF*5
                 normalizedDFF = np.vstack([normalizedDFF,ventTrace])
             else:
