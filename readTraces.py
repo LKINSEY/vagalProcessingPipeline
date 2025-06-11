@@ -150,7 +150,6 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
                 xAxis = np.arange(-beggining, end,stepping)
                 vLine = beggining
             dFF = (plottingF - f0)/f0
-            print('dff',np.nanstd(dFF, axis=0))
             if dFF.shape[0] <= 2:
                 normalizedDFF = dFF*5
                 normalizedDFF = np.vstack([normalizedDFF,ventTrace])
