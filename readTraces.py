@@ -283,7 +283,8 @@ def summerize_experiment(expmtPath, dataDict):
                 # pdfSummary.savefig(fig)
             
             trialsBool = slicePerTrial==trialSet
-            rois = np.arange(traces[firstTrialInSet].shape[1]-1) 
+
+            rois = np.arange(len(traces[f'T{firstTrialInSet}_roiOrder']))
             for roi in rois:
                 fig = analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, expmtNotes, gcampROIs, colabeledROIs)
                 plt.savefig(pdfSummary, format='pdf')
@@ -319,41 +320,39 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
     nConditions = len(np.where(trialsBool==True)[0])
     conditions = notes['stim_type'].values[trialsBool]
     frameRate = notes['frame_rate'].values[trialsBool]
-    fig, ax = plt.subplots(nConditions, 1, sharex=False, constrained_layout=True)
-
-    for condition in range(nConditions):
-        fps = frameRate[condition]
-        conditionStr = conditions[condition]
-        trial = trialIndices[condition]
+    if nConditions ==1:
+        fig, ax = plt.subplots()
+        fps = frameRate[0]
+        conditionStr = conditions[0]
+        trial = trialIndices[0]
         trialROIs = traces[f'T{trial}_roiOrder']
         roi = trialROIs[roiChoice]
+        fig.suptitle(f'ROI {roi}')
         if roi in gcampROIs:
-            wgaPositive = False
+                wgaPositive = False
         else:
             wgaPositive = True
         try:
-            rawF = traces[trial][:,roiChoice].T #1D
+            rawF = traces[trial][:,roiChoice].T
         except IndexError:
             print('Improper ROI count, redo processing')
         if conditionStr == 'baseline':
-            f0 = np.nanmean(rawF[:round(len(rawF)/4)])
-            dFF = (rawF - f0)/f0
-            # normalizedDFF = (dFF - np.nanmean(dFF)) / np.nanstd(dFF)
-            fig.suptitle(f'Trial {trial}\n ROI {roi}')
-            if wgaPositive:
-                ax[condition].plot(dFF, color='#32CD32')
-            else:
-                ax[condition].plot(dFF, color='#8A2BE2')
-            
-            ax[condition].axhline(0, color='black', alpha=0.5)
-            ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+                f0 = np.nanmean(rawF[:round(len(rawF)/4)])
+                dFF = (rawF - f0)/f0
+                if wgaPositive:
+                    ax.plot(dFF, color='#32CD32')
+                else:
+                    ax.plot(dFF, color='#8A2BE2')
+                
+                ax.axhline(0, color='black', alpha=0.5)
+                ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
         else:
             if notes['stim_frame'].values[0]=='voltage':
                 stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
             else:
                 stimFrame = notes['stim_frame'][trial]
             #TODO: will need to generalize this for any type of 2p experiment...
-            if 'mech_galvo' in expmt:
+            if fps <=4:#'mech_galvo' in expmtPath:
                 if stimFrame>=21:
                     beggining = 20
                 else:
@@ -377,37 +376,115 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
             if beggining == 0:
                 f0 = np.nanmean(rawF[0:stimFrame])
                 plottingF = rawF[beggining:stimFrame+end]
-                ax[condition].axvline(0, color='black', alpha=0.2)
+                ax.axvline(0, color='black', alpha=0.2)
                 xAxis = np.arange(-stimFrame, end)
                 dFF = (plottingF - f0)/f0
                 if wgaPositive:
-                    ax[condition].plot(xAxis, dFF, color='#32CD32')
+                    ax.plot(xAxis, dFF, color='#32CD32')
                 else:
-                    ax[condition].plot(xAxis, dFF, color='#8A2BE2')
-                ax[condition].set_xlim([-stimFrame, end])
+                    ax.plot(xAxis, dFF, color='#8A2BE2')
+                ax.set_xlim([-stimFrame, end])
             else:
                 f0 = np.nanmean(rawF[beggining:stimFrame])
                 plottingF = rawF[stimFrame - beggining:stimFrame+end]
-                ax[condition].axvline(0, color='black', alpha=0.2)
+                ax.axvline(0, color='black', alpha=0.2)
                 xAxis = np.arange(-beggining, end)
                 dFF = (plottingF - f0)/f0
                 if wgaPositive:
-                    ax[condition].plot(xAxis, dFF, color='#32CD32')
+                    ax.plot(xAxis, dFF, color='#32CD32')
                 else:
-                    ax[condition].plot(xAxis, dFF, color='#8A2BE2')
-                ax[condition].set_xlim([-beggining, end])
-            
+                    ax.plot(xAxis, dFF, color='#8A2BE2')
+                ax.set_xlim([-beggining, end])
+            ax.axhline(0, color='black', alpha=0.2)
+            ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+    else:
+        fig, ax = plt.subplots(nConditions, 1, sharex=False, constrained_layout=True)
+        for condition in range(nConditions):
+            fps = frameRate[condition]
+            conditionStr = conditions[condition]
+            trial = trialIndices[condition]
+            trialROIs = traces[f'T{trial}_roiOrder']
+            roi = trialROIs[roiChoice]
+            fig.suptitle(f'ROI {roi}')
+            if roi in gcampROIs:
+                wgaPositive = False
+            else:
+                wgaPositive = True
+            try:
+                rawF = traces[trial][:,roiChoice].T #1D
+            except IndexError:
+                print('Improper ROI count, redo processing')
+            if conditionStr == 'baseline':
+                f0 = np.nanmean(rawF[:round(len(rawF)/4)])
+                dFF = (rawF - f0)/f0
+                if wgaPositive:
+                    ax[condition].plot(dFF, color='#32CD32')
+                else:
+                    ax[condition].plot(dFF, color='#8A2BE2')
+                
+                ax[condition].axhline(0, color='black', alpha=0.5)
+                ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+            else:
+                if notes['stim_frame'].values[0]=='voltage':
+                    stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
+                else:
+                    stimFrame = notes['stim_frame'][trial]
+                #TODO: will need to generalize this for any type of 2p experiment...
+                if fps <=4:#'mech_galvo' in expmtPath:
+                    if stimFrame>=21:
+                        beggining = 20
+                    else:
+                        beggining = 0
+                    if stimFrame+30 > len(rawF):
+                        end = len(rawF) - stimFrame
+                    else:
+                        end = 30
+                else:
+                    voltageTrace = rawF[-1,:]
+                    if stimFrame >=150:
+                        beggining = 150
+                    else:
+                        beggining = 0
+                    
+                    if stimFrame + 300 > len(voltageTrace):
+                        end = len(voltageTrace) - stimFrame
+                    else:
+                        end = 300
+                
+                if beggining == 0:
+                    f0 = np.nanmean(rawF[0:stimFrame])
+                    plottingF = rawF[beggining:stimFrame+end]
+                    ax[condition].axvline(0, color='black', alpha=0.2)
+                    xAxis = np.arange(-stimFrame, end)
+                    dFF = (plottingF - f0)/f0
+                    if wgaPositive:
+                        ax[condition].plot(xAxis, dFF, color='#32CD32')
+                    else:
+                        ax[condition].plot(xAxis, dFF, color='#8A2BE2')
+                    ax[condition].set_xlim([-stimFrame, end])
+                else:
+                    f0 = np.nanmean(rawF[beggining:stimFrame])
+                    plottingF = rawF[stimFrame - beggining:stimFrame+end]
+                    ax[condition].axvline(0, color='black', alpha=0.2)
+                    xAxis = np.arange(-beggining, end)
+                    dFF = (plottingF - f0)/f0
+                    if wgaPositive:
+                        ax[condition].plot(xAxis, dFF, color='#32CD32')
+                    else:
+                        ax[condition].plot(xAxis, dFF, color='#8A2BE2')
+                    ax[condition].set_xlim([-beggining, end])
+                
 
-            # normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
+                # normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
 
-            ax[condition].axhline(0, color='black', alpha=0.2)
-            ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-
-
+                ax[condition].axhline(0, color='black', alpha=0.2)
+                ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
 
 
 
-#%%
+
+
+#%
 
 if __name__=='__main__':
     dataFrom = [
