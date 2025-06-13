@@ -138,14 +138,14 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         if sync:
             if beggining == 0:
                 f0 = np.nanmean(rawF[:-1,beggining:stimFrame], axis=1) 
-                f0 = np.reshape(f0, (len(traces[f'T{trial}_roiOrder']),1))
+                f0 = np.reshape(f0, (f0.shape[0],1))
                 plottingF = rawF[:-1,beggining:stimFrame+end]
                 ventTrace = ((rawF[-1,beggining:stimFrame+end])+.5)*4
                 xAxis = np.arange(-stimFrame, end,stepping)
                 vLine = stimFrame
             else:
                 f0 = np.nanmean(rawF[:-1,stimFrame -beggining:stimFrame], axis=1)
-                f0 = np.reshape(f0, (len(traces[f'T{trial}_roiOrder']),1))
+                f0 = np.reshape(f0, (f0.shape[0],1))
                 plottingF = rawF[:-1,stimFrame - beggining:stimFrame+end]
                 ventTrace = ((rawF[-1,stimFrame - beggining:stimFrame+end])+.5)*4
                 xAxis = np.arange(-beggining, end,stepping)
