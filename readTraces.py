@@ -227,11 +227,6 @@ def summerize_experiment(expmtPath, dataDict):
         colabeledCenters = [center_of_mass(masks[1,:,:]==roi) for roi in colabeledROIs]
         firstTrialInSet = trialIndices[slicePerTrial==trialSet][0]
 
-        # saveFN = Path(expmtPath+f'/figures/slice{trialSet}_summary.pdf')
-        # if os.path.exists(expmt+'/figures/'):
-        #     saveFN = str(Path(expmtPath+f'/figures/slice{trialSet}_summary.pdf')).replace('\\', '/')
-        #     pdfSummary = PdfPages(saveFN)
-        # else:
         figureDR = Path(expmtPath)/'figures'
         figureDR.mkdir(parents=True, exist_ok=True)
         saveFN = str(figureDR / f'slice{trialSet}_summary.pdf')
@@ -263,7 +258,6 @@ def summerize_experiment(expmtPath, dataDict):
             ax.get_yaxis().set_visible(False)
             fig.suptitle(f'Slice {trialSet} Segmentations')
             plt.savefig(pdfSummary, format='pdf')
-            # pdfSummary.savefig(fig)#, format='pdf')
 
 
             fig, ax = plt.subplots()
@@ -274,7 +268,6 @@ def summerize_experiment(expmtPath, dataDict):
             ax.get_yaxis().set_visible(False)
             fig.suptitle(f'Slice {trialSet} Segmentations')
             plt.savefig(pdfSummary, format='pdf')
-            # pdfSummary.savefig(fig)
             
             
             for trialIDX in trialIndices[slicePerTrial==trialSet]:
@@ -288,13 +281,12 @@ def summerize_experiment(expmtPath, dataDict):
             for roi in rois:
                 fig = analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, expmtNotes, gcampROIs, colabeledROIs)
                 plt.savefig(pdfSummary, format='pdf')
-                # pdfSummary.savefig(fig)
                 
         except OSError:
-            pdfSummary.close() #make sure pdf closes
+            pdfSummary.close() 
             print('Path Error')
 
-        pdfSummary.close() #make sure pdf closes
+        pdfSummary.close() 
             
 def find_stim_frame(ventilatorTrace, condition):
     edges = ventilatorTrace - np.roll(ventilatorTrace, -1)
@@ -351,8 +343,7 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
                 stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
             else:
                 stimFrame = notes['stim_frame'][trial]
-            #TODO: will need to generalize this for any type of 2p experiment...
-            if fps <=4:#'mech_galvo' in expmtPath:
+            if fps <=4:
                 if stimFrame>=21:
                     beggining = 20
                 else:
@@ -429,8 +420,7 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
                     stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
                 else:
                     stimFrame = notes['stim_frame'][trial]
-                #TODO: will need to generalize this for any type of 2p experiment...
-                if fps <=4:#'mech_galvo' in expmtPath:
+                if fps <=4:
                     if stimFrame>=21:
                         beggining = 20
                     else:
@@ -474,9 +464,6 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
                         ax[condition].plot(xAxis, dFF, color='#8A2BE2')
                     ax[condition].set_xlim([-beggining, end])
                 
-
-                # normalizedDFF = (dFF - np.nanmean(dFF, axis=0))/ (np.nanstd(dFF, axis=0))
-
                 ax[condition].axhline(0, color='black', alpha=0.2)
                 ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
 
