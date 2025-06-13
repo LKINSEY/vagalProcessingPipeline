@@ -69,13 +69,18 @@ def sync_traces(expmtPath, dataDict):
                     if ventilatorTrace.shape[0] == rawROIs.shape[1]:
                         rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
                         voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)
+                        addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
+                        trialTraceArray.append(addToTraces)
                     else:
-                        print(f'\nTrial {trial+1} Sampling is off by 1\n')
-                        rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
-                        voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
-                        
-                    addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
-                    trialTraceArray.append(addToTraces)
+                        try:
+                            rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
+                            voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
+                            print(f'\nTrial {trial+1} Sampling is off by 1\n')
+                            addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
+                            trialTraceArray.append(addToTraces)                            
+                        except ValueError:
+                            print('\n error with cycle - ommitting')
+
             else: #if manually recorded stim frame (it is not split into trials if it is this case)
                 trialTraceArray.append(rawROIs)
         trialTrace = np.hstack(trialTraceArray).T
