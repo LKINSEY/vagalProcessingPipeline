@@ -124,6 +124,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             else:
                 end = 30
         else:
+            stepping = 5
             refTrace = rawF[-1,:]
             if stimFrame >=150:
                 beggining = 150
@@ -216,7 +217,7 @@ def summerize_experiment(expmtPath, dataDict):
     # setCounter = 1
     print('Plotting...\n')
     for trialSet in trialSets:
-        trialsInSet = trialPaths[slicePerTrial==trialSet]
+        # trialsInSet = trialPaths[slicePerTrial==trialSet]
         segFN = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{trialSet}_seg.npy')[0]
         masksLoaded = np.load(segFN, allow_pickle=True).item()
         masks = masksLoaded['masks']
@@ -279,7 +280,7 @@ def summerize_experiment(expmtPath, dataDict):
 
             rois = np.arange(len(traces[f'T{firstTrialInSet}_roiOrder']))
             for roi in rois:
-                fig = analyze_roi_across_conditions(expmtPath, trialsBool, roi, traces, expmtNotes, gcampROIs, colabeledROIs)
+                fig = analyze_roi_across_conditions( trialsBool, roi, traces, expmtNotes, gcampROIs)
                 plt.savefig(pdfSummary, format='pdf')
                 
         except OSError:
@@ -306,7 +307,7 @@ def find_stim_frame(ventilatorTrace, condition):
     return stimFrame[0]
 
 
-def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, notes, gcampROIs, colabeledROIs):
+def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROIs):
     nTrials = len(trialsBool)
     trialIndices = np.arange(nTrials)[trialsBool]
     nConditions = len(np.where(trialsBool==True)[0])
@@ -430,14 +431,14 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
                     else:
                         end = 30
                 else:
-                    voltageTrace = rawF[-1,:]
+                    # voltageTrace = rawF[-1,:]
                     if stimFrame >=150:
                         beggining = 150
                     else:
                         beggining = 0
                     
-                    if stimFrame + 300 > len(voltageTrace):
-                        end = len(voltageTrace) - stimFrame
+                    if stimFrame + 300 > len(rawF):
+                        end = len(rawF) - stimFrame
                     else:
                         end = 300
                 
@@ -471,7 +472,7 @@ def analyze_roi_across_conditions(expmtPath, trialsBool, roiChoice, traces, note
 
 
 
-#%
+#%%
 
 if __name__=='__main__':
     dataFrom = [
@@ -480,7 +481,7 @@ if __name__=='__main__':
         'U:/expmtRecords/res_galvo/Lucas*',
         'U:/expmtRecords/mech_galvo/Lucas*',
         ]
-    expmtRecords = glob.glob(dataFrom[3])
+    expmtRecords = glob.glob(dataFrom[2])
     plt.close('all')
     for expmt in expmtRecords:
         print('Loading Traces for \n', expmt)
