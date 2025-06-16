@@ -50,4 +50,5 @@ Stringer, C., Wang, T., Michaelos, M., & Pachitariu, M. (2021). Cellpose: a gene
 
 Pachitariu, M. & Stringer, C. (2022). Cellpose 2.0: how to train your own model. Nature methods, 1-8.
 
-
+# Future Development:
+Development is starting towards GUI that sets params and logs metadata of experiments automatically
