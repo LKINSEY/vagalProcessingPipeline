@@ -3,16 +3,16 @@ import socket
 from alicat import FlowController
 import asyncio
 
-# def who_am_i():
-#     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-#         s.connect(("8.8.8.8", 80))  
-#         address = s.getsockname()[0]
-#     if address == 'microscope ipv4':
-#         print('You are running on the microscope computer')
-#         return address
-#     else:
-#         print('you are not running on the microscope computer')
-#         return
+def who_am_i():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("8.8.8.8", 80))  
+        address = s.getsockname()[0]
+    if address == 'microscope ipv4':
+        print('You are running on the microscope computer')
+        return address
+    else:
+        print('you are not running on the microscope computer')
+        return
     
 conditions = {
     'basal': {
