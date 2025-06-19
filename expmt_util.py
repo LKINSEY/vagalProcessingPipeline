@@ -74,5 +74,8 @@ def connect_to_prairie_view(address):
         print('Did not connect to prairie view - try opening prairie view')
         return
 
+def disconnect_from_prairie_view(pl):
+    pl.Disconnect()
+
 def run_single_trial(pl):
     pl.sendScriptCommands('-ts')
