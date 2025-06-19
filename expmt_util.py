@@ -73,3 +73,6 @@ def connect_to_prairie_view(address):
     else:
         print('Did not connect to prairie view - try opening prairie view')
         return
+
+def run_single_trial(pl):
+    pl.sendScriptCommands('-ts')
