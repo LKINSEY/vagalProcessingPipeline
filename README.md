@@ -21,7 +21,7 @@ pip install alicat
 
 ```
 (may need to download additional dependencies found here https://github.com/MouseLand/cellpose) -- this is also why env should be python=3.10
-
+- this installs pyqt6 as well
 
 
 # How To:
