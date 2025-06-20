@@ -30,9 +30,10 @@ class APV_Interface(QMainWindow):
         super().__init__()
         self.setWindowTitle('Alicat-Prairie View Interface')
         self.setGeometry(200,200,400,200)
-
         self.show()
-        with open(os.getcwd() + '\\conditions.json', 'r') as f:
+
+        conditionsJSONPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'conditions.json')
+        with open(conditionsJSONPath, 'r') as f:
                 self.conditionsDict = json.load(f)
         self.co2 = None
         self.o2 = None
@@ -46,6 +47,12 @@ class APV_Interface(QMainWindow):
         self.initUI()
        
     def initUI(self):
+        configMenu = self.menuBar()
+        configMenu.addMenu('Add Gas Condition')
+        configMenu.addMenu('Remove Gas Condition')
+        configMenu.addMenu('Exit')
+
+
         background = QWidget()
         self.setCentralWidget(background)
         lefRightColumns = QHBoxLayout()
@@ -146,9 +153,7 @@ class APV_Interface(QMainWindow):
         else:
              self.notConnected = QErrorMessage(self)
              self.notConnected.showMessage('Not Connected to Prairie View')
-             #update qlabel to say "you need to connect to pv or alicats" or something
-             #for now jsut print because its end of day today
-             print('Not Connected to prairie view')
+
 
 
 if __name__ == '__main__':
