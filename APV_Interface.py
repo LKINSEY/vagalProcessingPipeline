@@ -1,7 +1,6 @@
 from PyQt6.QtWidgets import (
     QListWidget, 
     QPushButton, 
-    QComboBox,  
     QHBoxLayout, 
     QLabel, 
     QErrorMessage, 
@@ -12,11 +11,9 @@ from PyQt6.QtWidgets import (
     QWidget, 
     QGroupBox
 )
-from PyQt6.QtCore import (
-    Qt, 
-    QThreadPool
-)
+from PyQt6.QtCore import QTimer
 import os, json, sys, asyncio
+from datetime import datetime
 from expmt_util import *
 
 
@@ -42,7 +39,9 @@ class APV_Interface(QMainWindow):
         self.alicatsOn = False
         self.pvConnection = False
         self.currentcondition = self.conditionsDict['basal']
-
+        self.trialCounter = 0
+        self.savePath = 'E:/Lucas/templates/testing' #'C:/'
+        self.gasChangeSetTime = 5000
         
         self.initUI()
        
@@ -50,6 +49,7 @@ class APV_Interface(QMainWindow):
         configMenu = self.menuBar()
         configMenu.addMenu('Add Gas Condition')
         configMenu.addMenu('Remove Gas Condition')
+        configMenu.addMenu('Set Save Location') #defaults to C:/ drive
         configMenu.addMenu('Exit')
 
 
@@ -82,17 +82,19 @@ class APV_Interface(QMainWindow):
         self.conditionsList = QListWidget()
         for condition in self.conditionsDict.keys():
             self.conditionsList.addItem(condition)
+        self.conditionsList.setCurrentRow(0)
         self.conditionsList.itemSelectionChanged.connect(self.update_current_settings)
+        
 
-        self.currentSettingsLabel = QGroupBox('Current Settings')
+        self.currentSettingsLabel = QGroupBox('Trial Settings')
         self.currentSettingsLabel.setFixedHeight(120)
 
         self.current_TitlesLayout = QHBoxLayout()
-        self.current_o2Title = QLabel('Current O2')
+        self.current_o2Title = QLabel('O2')
         self.current_TitlesLayout.addWidget(self.current_o2Title)
-        self.current_co2Title = QLabel('Current CO2')
+        self.current_co2Title = QLabel('CO2')
         self.current_TitlesLayout.addWidget(self.current_co2Title)
-        self.current_n2Title = QLabel('Current N2')
+        self.current_n2Title = QLabel('N2')
         self.current_TitlesLayout.addWidget(self.current_n2Title)
 
         self.current_textEditsLayout = QHBoxLayout()
@@ -103,12 +105,13 @@ class APV_Interface(QMainWindow):
         self.current_n2Edit = QTextEdit(str(self.currentcondition['N2']))
         self.current_textEditsLayout.addWidget(self.current_n2Edit)
 
-        self.updateChangedSettings = QPushButton('Update Settings')
+        self.zeroAlicats = QPushButton('Zero Alicats')
+        self.zeroAlicats.clicked.connect(self.zero_alicats)
 
         self.currentSettingsLayout = QVBoxLayout()
         self.currentSettingsLayout.addLayout(self.current_TitlesLayout)
         self.currentSettingsLayout.addLayout(self.current_textEditsLayout)
-        self.currentSettingsLayout.addWidget(self.updateChangedSettings)
+        self.currentSettingsLayout.addWidget(self.zeroAlicats)
         self.currentSettingsLabel.setLayout(self.currentSettingsLayout)
 
         #TODO add a new condition add a file manager in top left that opens a condition adder - this shouldn't be a regular thing so its hidden, but need a dedicated way to customize conditions
@@ -155,20 +158,59 @@ class APV_Interface(QMainWindow):
                 self.PVConnection_text.setText('Not Connected')
 
     def send_trial_run_noParam(self):
+        self.eventLog = {} #reset event log for trial
+        co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
         if self.pl:
+            self.eventLog = {
+                'ts': datetime.now().time().isoformat(),
+                'initial_gas':{
+                    'co2':co2Print,
+                    'o2':o2Print,
+                    'n2':n2Print
+                }
+            }
             run_single_trial(self.pl)
+
+            #SET HOW LONG YOU WANT TO WAIT FOR THIS COMMAND TO OCCUR - this is in miliseconds
+            QTimer.singleShot(self.gasChangeSetTime, self.set_gases)
+
         else:
              self.notConnected = QErrorMessage(self)
              self.notConnected.showMessage('Not Connected to Prairie View')
     
+    def zero_alicats(self):
+        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.conditionsDict['zero']))
+        self.currentcondition = self.conditionsDict['zero']
+        for i in range(self.conditionsList.count()):
+            if self.conditionsList.item(i).text() == 'zero':
+                self.conditionsList.setCurrentRow(i)
+
+
     def update_current_settings(self):
         newCondition = self.conditionsList.selectedItems()[0].text()
         self.currentcondition = self.conditionsDict[newCondition]
         self.current_o2Edit.setText(str(self.currentcondition['O2']))
         self.current_co2Edit.setText(str(self.currentcondition['CO2']))
         self.current_n2Edit.setText(str(self.currentcondition['N2']))
-
-
+    
+    def set_gases(self):
+        gasTime = datetime.now().time().isoformat()
+        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition))
+        co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
+        gasChangeDict = {
+            'time': gasTime,
+            'gas': {
+                'co2':co2Print,
+                'o2':o2Print,
+                'n2':n2Print
+            },
+            'conditions': self.conditionsList.selectedItems()[0].text()
+        }
+        self.eventLog['gas_change'] = gasChangeDict
+        print(type(self.eventLog))
+        with open(os.path.join(self.savePath, f'gas_trial_{self.trialCounter}.json'), 'w') as f:
+            json.dump(self.eventLog, f, indent=4)
+        self.trialCounter+=1
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
