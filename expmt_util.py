@@ -51,6 +51,13 @@ async def connect_alicats(port, units: list=['A', 'B', 'C']):
     await n2.set_gas('N2')
     return co2, o2, n2
 
+async def get_alicat_info(co2, o2, n2):
+    co2result = await co2.get()
+    o2result = await o2.get()
+    n2result = await n2.get()
+    return co2result, o2result, n2result
+
+
 async def close_alicats(co2, o2, n2):
     await co2.close()
     await o2.close()
