@@ -16,7 +16,7 @@ from PyQt6.QtCore import (
     Qt, 
     QThreadPool
 )
-import os, json, sys
+import os, json, sys, asyncio
 from expmt_util import *
 
 
@@ -82,6 +82,7 @@ class APV_Interface(QMainWindow):
         self.conditionsList = QListWidget()
         for condition in self.conditionsDict.keys():
             self.conditionsList.addItem(condition)
+        self.conditionsList.itemSelectionChanged.connect(self.update_current_settings)
 
         self.currentSettingsLabel = QGroupBox('Current Settings')
         self.currentSettingsLabel.setFixedHeight(120)
@@ -120,32 +121,38 @@ class APV_Interface(QMainWindow):
 
     def connect_to_alicats(self):
         if not self.alicatsOn:
-            self.co2, self.o2, self.n2 = connect_alicats('COM5')
-            self.alicatsOn = True
-            self.connectAlicats_button.setText('Disconnect Alicats')
-            self.alicatConnect_text.setText('Alicats Connected')
+            try:
+                self.co2, self.o2, self.n2 = asyncio.run(connect_alicats('COM5'))
+                self.alicatsOn = True
+                self.connectAlicats_button.setText('Disconnect Alicats')
+                self.alicatConnect_text.setText('Alicats Connected')
+            except:
+                self.notConnected = QErrorMessage(self)
+                self.notConnected.showMessage('Not Connected to Prairie View')
         else:
-            close_alicats(self.co2, self.o2, self.n2)
+            asyncio.run(close_alicats(self.co2, self.o2, self.n2))
             self.alicatsOn = False
+            self.connectAlicats_button.setText('Connect to Alicats')
             self.alicatConnect_text.setText('Not Connected')
 
     def connect_to_pv(self):
         if not self.pvConnection:
             address = who_am_i()    
             self.pl = connect_to_prairie_view(address)
+            print(self.pl)
             if self.pl:
                 self.connectPV_button.setText('Disconnect from PV')
                 self.pvConnection = True
-                self.alicatConnect_text.setText('Connected to Prairie Link')
+                self.PVConnection_text.setText('Connected to Prairie Link')
             else:
-                self.alicatConnect_text.setText('Unable to Establish Prairie-Link')
+                self.PVConnection_text.setText('Did not connect to prairie view - try opening prairie view')
 
         else:   
-            disconnect_from_prairie_view(self.pl)
-            self.pvConnection = False
-            self.alicatConnect_text.setText('Not Connected')
-
-
+            try:
+                self.pl.Disconnect()
+            finally:
+                self.pvConnection = False
+                self.PVConnection_text.setText('Not Connected')
 
     def send_trial_run_noParam(self):
         if self.pl:
@@ -153,6 +160,13 @@ class APV_Interface(QMainWindow):
         else:
              self.notConnected = QErrorMessage(self)
              self.notConnected.showMessage('Not Connected to Prairie View')
+    
+    def update_current_settings(self):
+        newCondition = self.conditionsList.selectedItems()[0].text()
+        self.currentcondition = self.conditionsDict[newCondition]
+        self.current_o2Edit.setText(str(self.currentcondition['O2']))
+        self.current_co2Edit.setText(str(self.currentcondition['CO2']))
+        self.current_n2Edit.setText(str(self.currentcondition['N2']))
 
 
 
