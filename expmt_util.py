@@ -7,7 +7,7 @@ def who_am_i():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect(("8.8.8.8", 80))  
         address = s.getsockname()[0]
-    if address == 'microscope ipv4':
+    if address == '10.123.1.121':
         print('You are running on the microscope computer')
         return address
     else:
@@ -73,7 +73,7 @@ async def set_gas_flow_composition(co2, o2, n2, conditionsDict, maxFlow: float=0
 
 def connect_to_prairie_view(address):
     pl = win32com.client.Dispatch('PrairieLink.Application')
-    pl.Connect(address, 'secret code for microscope')
+    pl.Connect(address,'77B2')
     if pl.Connected():
         print('Successfully Connected to Prairie View')
         return pl
