@@ -53,5 +53,6 @@ Stringer, C., Wang, T., Michaelos, M., & Pachitariu, M. (2021). Cellpose: a gene
 
 Pachitariu, M. & Stringer, C. (2022). Cellpose 2.0: how to train your own model. Nature methods, 1-8.
 
-# Future Development:
-Development is starting towards GUI that sets params and logs metadata of experiments automatically
+# Alicat Interface for Changing Gas Composition:
+![image](https://github.com/user-attachments/assets/c4867de7-e2e2-4344-9acd-367ca1a1c1d5)
+
