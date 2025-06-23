@@ -40,8 +40,9 @@ class APV_Interface(QMainWindow):
         self.pvConnection = False
         self.currentcondition = self.conditionsDict['basal']
         self.trialCounter = 0
-        self.savePath = 'E:/Lucas/templates/testing' #'C:/'
-        self.gasChangeSetTime = 5000
+        self.savePath = 'E:/Lucas/templates/testing/newTest' #'C:/'
+        self.gasChangeSetTime = int(120*1000)
+        self.eventLog = {}
         
         self.initUI()
        
@@ -120,7 +121,31 @@ class APV_Interface(QMainWindow):
         rightColumn.addWidget(self.currentSettingsLabel)
 
 
-
+    def instant_gas_change(self):
+        changeDetails = {}
+        co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
+        changeDetails['pre'] = {
+            'time': datetime.now().time().isoformat(),
+            'gas': {
+                'co2':co2Print,
+                'o2':o2Print,
+                'n2':n2Print
+            },
+            'conditions': self.conditionsList.selectedItems()[0].text()
+        }
+        
+        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition))
+        
+        changeDetails['post'] = {
+            'time': datetime.now().time().isoformat(),
+            'gas': {
+                'co2':co2Print,
+                'o2':o2Print,
+                'n2':n2Print
+            },
+            'conditions': self.conditionsList.selectedItems()[0].text()
+        }
+        self.eventLog['inst_change'] = changeDetails
 
     def connect_to_alicats(self):
         if not self.alicatsOn:
@@ -158,7 +183,7 @@ class APV_Interface(QMainWindow):
                 self.PVConnection_text.setText('Not Connected')
 
     def send_trial_run_noParam(self):
-        self.eventLog = {} #reset event log for trial
+        
         co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
         if self.pl:
             self.eventLog = {
@@ -171,31 +196,42 @@ class APV_Interface(QMainWindow):
             }
             run_single_trial(self.pl)
 
-            #SET HOW LONG YOU WANT TO WAIT FOR THIS COMMAND TO OCCUR - this is in miliseconds
+            #GAS CHANGE STARTS 120s AFTER TRIAL STARTS, but when it reverts thats customizable
             QTimer.singleShot(self.gasChangeSetTime, self.set_gases)
+            
+            self.eventLog = {} #reset event log for trial
 
         else:
              self.notConnected = QErrorMessage(self)
              self.notConnected.showMessage('Not Connected to Prairie View')
     
     def zero_alicats(self):
-        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.conditionsDict['zero']))
+        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.conditionsDict['zero']))        
         self.currentcondition = self.conditionsDict['zero']
         for i in range(self.conditionsList.count()):
             if self.conditionsList.item(i).text() == 'zero':
                 self.conditionsList.setCurrentRow(i)
+        self.current_o2Edit.setStyleSheet("background-color: none;")
+        self.current_co2Edit.setStyleSheet("background-color: none;")
+        self.current_n2Edit.setStyleSheet("background-color: none;")                
 
 
     def update_current_settings(self):
         newCondition = self.conditionsList.selectedItems()[0].text()
         self.currentcondition = self.conditionsDict[newCondition]
         self.current_o2Edit.setText(str(self.currentcondition['O2']))
+        self.current_o2Edit.setStyleSheet("QTextEdit { background-color: lightblue; }")
         self.current_co2Edit.setText(str(self.currentcondition['CO2']))
+        self.current_co2Edit.setStyleSheet("QTextEdit { background-color: lightblue; }")
         self.current_n2Edit.setText(str(self.currentcondition['N2']))
+        self.current_n2Edit.setStyleSheet("QTextEdit { background-color: lightblue; }")
     
     def set_gases(self):
         gasTime = datetime.now().time().isoformat()
         asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition))
+        self.current_o2Edit.setStyleSheet("QTextEdit { background-color: white; }")
+        self.current_co2Edit.setStyleSheet("QTextEdit { background-color: white; }")
+        self.current_n2Edit.setStyleSheet("QTextEdit { background-color: white; }")
         co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
         gasChangeDict = {
             'time': gasTime,
@@ -220,8 +256,10 @@ if __name__ == '__main__':
 
 '''
 the big TODO list:
-1.) make feature to save what condition is used every time you click "run trial"
-2.) make sure you log the timing the conditions change
-3.) make the saving of these logs to be saved to where pv is saving trials to
-4.) do more...
+
+
+3.) make the saving of these logs to be saved to where pv is saving trials to #kinda
+4.) make feature to change gas composition without running trial (involves also differentiating between pending gas change and current gas)
+5.) include text edit for max volume delivery
+6.) text edit WHEN to deliver gas change
 '''
