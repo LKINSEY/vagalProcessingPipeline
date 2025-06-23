@@ -6,11 +6,13 @@ from PyQt6.QtWidgets import (
     QErrorMessage, 
     QApplication, 
     QMainWindow, 
-    QTextEdit, 
+    QLineEdit, 
     QVBoxLayout, 
     QWidget, 
-    QGroupBox
+    QGroupBox,
+    QFileDialog,
 )
+from PyQt6.QtGui import QDoubleValidator, QAction
 from PyQt6.QtCore import QTimer
 import os, json, sys, asyncio
 from datetime import datetime
@@ -26,7 +28,7 @@ class APV_Interface(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Alicat-Prairie View Interface')
-        self.setGeometry(200,200,400,200)
+        self.setGeometry(200,200,750,200)
         self.show()
 
         conditionsJSONPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'conditions.json')
@@ -40,7 +42,7 @@ class APV_Interface(QMainWindow):
         self.pvConnection = False
         self.currentcondition = self.conditionsDict['basal']
         self.trialCounter = 0
-        self.savePath = 'E:/Lucas/templates/testing/newTest' #'C:/'
+        self.savePath = 'C:/'
         self.gasChangeSetTime = int(120*1000)
         self.eventLog = {}
         
@@ -48,11 +50,17 @@ class APV_Interface(QMainWindow):
        
     def initUI(self):
         configMenu = self.menuBar()
-        configMenu.addMenu('Add Gas Condition')
-        configMenu.addMenu('Remove Gas Condition')
-        configMenu.addMenu('Set Save Location') #defaults to C:/ drive
-        configMenu.addMenu('Exit')
 
+        #for later...
+        # configMenu.addMenu('Add Gas Condition')
+        # configMenu.addMenu('Remove Gas Condition')
+        # configMenu.addMenu('Exit')
+
+        saveDirLocation = QAction('Choose Save Directory', self) #defaults to C:/
+        configMenu.addAction(saveDirLocation)
+        saveDirLocation.triggered.connect(self.update_save_dir)
+        validator = QDoubleValidator()
+        validator.setNotation(QDoubleValidator.Notation.StandardNotation)
 
         background = QWidget()
         self.setCentralWidget(background)
@@ -84,35 +92,50 @@ class APV_Interface(QMainWindow):
         for condition in self.conditionsDict.keys():
             self.conditionsList.addItem(condition)
         self.conditionsList.setCurrentRow(0)
-        self.conditionsList.itemSelectionChanged.connect(self.update_current_settings)
         
 
         self.currentSettingsLabel = QGroupBox('Trial Settings')
         self.currentSettingsLabel.setFixedHeight(120)
 
         self.current_TitlesLayout = QHBoxLayout()
-        self.current_o2Title = QLabel('O2')
+        self.current_o2Title = QLabel('O2 %')
         self.current_TitlesLayout.addWidget(self.current_o2Title)
-        self.current_co2Title = QLabel('CO2')
+        self.current_co2Title = QLabel('CO2 %')
         self.current_TitlesLayout.addWidget(self.current_co2Title)
-        self.current_n2Title = QLabel('N2')
+        self.current_n2Title = QLabel('N2 % ')
         self.current_TitlesLayout.addWidget(self.current_n2Title)
+        self.current_maxVolTitle = QLabel('Max Volume (SLPM)')
+        self.current_TitlesLayout.addWidget(self.current_maxVolTitle)
 
         self.current_textEditsLayout = QHBoxLayout()
-        self.current_o2Edit = QTextEdit(str(self.currentcondition['O2']))
+        self.current_o2Edit = QLineEdit(str(self.currentcondition['O2']))
+        self.current_o2Edit.setValidator(validator)
+        self.current_o2Edit.textChanged.connect(lambda text: self.__if_text_changed(text, self.current_o2Edit))
         self.current_textEditsLayout.addWidget(self.current_o2Edit)
-        self.current_co2Edit = QTextEdit(str(self.currentcondition['CO2']))
+        self.current_co2Edit = QLineEdit(str(self.currentcondition['CO2']))
+        self.current_co2Edit.setValidator(validator)
+        self.current_co2Edit.textChanged.connect(lambda text: self.__if_text_changed(text, self.current_co2Edit))
         self.current_textEditsLayout.addWidget(self.current_co2Edit)
-        self.current_n2Edit = QTextEdit(str(self.currentcondition['N2']))
+        self.current_n2Edit = QLineEdit(str(self.currentcondition['N2']))
+        self.current_n2Edit.setValidator(validator)
+        self.current_n2Edit.textChanged.connect(lambda text: self.__if_text_changed(text, self.current_n2Edit))
         self.current_textEditsLayout.addWidget(self.current_n2Edit)
+        self.current_maxVolEdit = QLineEdit(str(0.1))
+        self.current_maxVolEdit.setValidator(validator)
+        self.current_textEditsLayout.addWidget(self.current_maxVolEdit)
 
         self.zeroAlicats = QPushButton('Zero Alicats')
         self.zeroAlicats.clicked.connect(self.zero_alicats)
+        self.instantAlicatChange = QPushButton('Update Gas Settings')
+        self.instantAlicatChange.clicked.connect(self.instant_gas_change)
 
         self.currentSettingsLayout = QVBoxLayout()
         self.currentSettingsLayout.addLayout(self.current_TitlesLayout)
         self.currentSettingsLayout.addLayout(self.current_textEditsLayout)
-        self.currentSettingsLayout.addWidget(self.zeroAlicats)
+        self.buttonsLayout = QHBoxLayout()
+        self.buttonsLayout.addWidget(self.zeroAlicats)
+        self.buttonsLayout.addWidget(self.instantAlicatChange)
+        self.currentSettingsLayout.addLayout(self.buttonsLayout)
         self.currentSettingsLabel.setLayout(self.currentSettingsLayout)
 
         #TODO add a new condition add a file manager in top left that opens a condition adder - this shouldn't be a regular thing so its hidden, but need a dedicated way to customize conditions
@@ -120,9 +143,26 @@ class APV_Interface(QMainWindow):
         rightColumn.addWidget(self.conditionsList)
         rightColumn.addWidget(self.currentSettingsLabel)
 
+        
+        self.conditionsList.itemSelectionChanged.connect(
+            lambda: self.update_current_settings(
+                self.current_o2Edit, 
+                self.current_co2Edit, 
+                self.current_n2Edit))
+
+    def update_save_dir(self):
+        newSaveDIR = QFileDialog.getExistingDirectory(self, 'Select Save Save Dir Specified in Prairie View')
+        if newSaveDIR:
+            self.Path = newSaveDIR
+
+    def __if_text_changed(self, text, lineEdit):
+        print('__if_text_changed')
+        lineEdit.setStyleSheet("background-color: lightblue;")
 
     def instant_gas_change(self):
+        print('instant_gas_change')
         changeDetails = {}
+        getMaxFlow = self.current_maxVolEdit.text()
         co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
         changeDetails['pre'] = {
             'time': datetime.now().time().isoformat(),
@@ -134,8 +174,9 @@ class APV_Interface(QMainWindow):
             'conditions': self.conditionsList.selectedItems()[0].text()
         }
         
-        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition))
-        
+        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition, getMaxFlow))
+        co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
+
         changeDetails['post'] = {
             'time': datetime.now().time().isoformat(),
             'gas': {
@@ -146,8 +187,12 @@ class APV_Interface(QMainWindow):
             'conditions': self.conditionsList.selectedItems()[0].text()
         }
         self.eventLog['inst_change'] = changeDetails
+        self.current_n2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+        self.current_co2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+        self.current_o2Edit.setStyleSheet("QTextEdit { background-color: none; }")
 
     def connect_to_alicats(self):
+        print('connect_to_alicats')
         if not self.alicatsOn:
             try:
                 self.co2, self.o2, self.n2 = asyncio.run(connect_alicats('COM5'))
@@ -164,6 +209,7 @@ class APV_Interface(QMainWindow):
             self.alicatConnect_text.setText('Not Connected')
 
     def connect_to_pv(self):
+        print('connect_to_pv')
         if not self.pvConnection:
             address = who_am_i()    
             self.pl = connect_to_prairie_view(address)
@@ -183,7 +229,7 @@ class APV_Interface(QMainWindow):
                 self.PVConnection_text.setText('Not Connected')
 
     def send_trial_run_noParam(self):
-        
+        print('send_trial_run_noParam')
         co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
         if self.pl:
             self.eventLog = {
@@ -206,32 +252,40 @@ class APV_Interface(QMainWindow):
              self.notConnected.showMessage('Not Connected to Prairie View')
     
     def zero_alicats(self):
+        print('zero_alicats')
         asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.conditionsDict['zero']))        
         self.currentcondition = self.conditionsDict['zero']
         for i in range(self.conditionsList.count()):
             if self.conditionsList.item(i).text() == 'zero':
                 self.conditionsList.setCurrentRow(i)
+        self.current_o2Edit.setText(str(self.currentcondition['O2']))
         self.current_o2Edit.setStyleSheet("background-color: none;")
+        self.current_co2Edit.setText(str(self.currentcondition['CO2']))
         self.current_co2Edit.setStyleSheet("background-color: none;")
-        self.current_n2Edit.setStyleSheet("background-color: none;")                
+        self.current_n2Edit.setText(str(self.currentcondition['N2']))
+        self.current_n2Edit.setStyleSheet("background-color: none;")  
+        self.current_maxVolEdit.setText(str(0.1))
+        self.current_maxVolEdit.setStyleSheet("QTextEdit { background-color: none; }")             
 
 
-    def update_current_settings(self):
+    def update_current_settings(self, current_o2Edit, current_co2Edit, current_n2Edit):
+        print('update_current_settings')
         newCondition = self.conditionsList.selectedItems()[0].text()
         self.currentcondition = self.conditionsDict[newCondition]
-        self.current_o2Edit.setText(str(self.currentcondition['O2']))
-        self.current_o2Edit.setStyleSheet("QTextEdit { background-color: lightblue; }")
-        self.current_co2Edit.setText(str(self.currentcondition['CO2']))
-        self.current_co2Edit.setStyleSheet("QTextEdit { background-color: lightblue; }")
-        self.current_n2Edit.setText(str(self.currentcondition['N2']))
-        self.current_n2Edit.setStyleSheet("QTextEdit { background-color: lightblue; }")
+        current_o2Edit.setText(str(self.currentcondition['O2']))
+        current_co2Edit.setText(str(self.currentcondition['CO2']))
+        current_n2Edit.setText(str(self.currentcondition['N2']))
+        
     
     def set_gases(self):
+        print('set_gases')
         gasTime = datetime.now().time().isoformat()
-        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition))
-        self.current_o2Edit.setStyleSheet("QTextEdit { background-color: white; }")
-        self.current_co2Edit.setStyleSheet("QTextEdit { background-color: white; }")
-        self.current_n2Edit.setStyleSheet("QTextEdit { background-color: white; }")
+        getMaxFlow = self.current_maxVolEdit.text()
+        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition,getMaxFlow))
+        self.current_o2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+        self.current_co2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+        self.current_n2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+        self.current_maxVolEdit.setStyleSheet("QTextEdit { background-color: none; }")
         co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
         gasChangeDict = {
             'time': gasTime,
