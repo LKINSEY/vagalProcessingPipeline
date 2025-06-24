@@ -64,9 +64,9 @@ async def close_alicats(co2, o2, n2):
     await n2.close()
 
 async def set_gas_flow_composition(co2, o2, n2, conditionsDict, maxFlow: float=0.1):
-    n2Flow = conditionsDict['N2']*maxFlow
-    o2Flow = conditionsDict['O2']*maxFlow
-    co2Flow = conditionsDict['CO2']*maxFlow
+    n2Flow =  float(conditionsDict['N2'])* float(maxFlow)
+    o2Flow =  float(conditionsDict['O2'])* float(maxFlow)
+    co2Flow = float(conditionsDict['CO2'])*float(maxFlow)
     await co2.set_flow_rate(co2Flow)
     await o2.set_flow_rate(o2Flow)
     await n2.set_flow_rate(n2Flow)
