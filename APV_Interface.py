@@ -159,6 +159,28 @@ class APV_Interface(QMainWindow):
         print('__if_text_changed')
         lineEdit.setStyleSheet("background-color: lightblue;")
 
+    def return_to_basal(self):
+        print('return to basal')
+        self.currentcondition = self.conditionsDict['basal']
+        getMaxFlow = self.current_maxVolEdit.text()
+        co2Print, o2Print, n2Print = asyncio.run(get_alicat_info(self.co2, self.o2, self.n2))
+        asyncio.run(set_gas_flow_composition(self.co2, self.o2, self.n2, self.currentcondition, getMaxFlow))
+        gasChangeDict = {
+            'time': datetime.now().time().isoformat(),
+            'gas': {
+                'co2':co2Print,
+                'o2':o2Print,
+                'n2':n2Print
+            },
+            'conditions': 'basal'
+        }
+        self.eventLog['return_to_basal'] = gasChangeDict
+        self.current_o2Edit.setText(str(self.currentcondition['O2']))
+        self.current_co2Edit.setText(str(self.currentcondition['CO2']))
+        self.current_n2Edit.setText(str(self.currentcondition['N2']))
+
+
+
     def instant_gas_change(self):
         print('instant_gas_change')
         changeDetails = {}
@@ -245,7 +267,15 @@ class APV_Interface(QMainWindow):
             #GAS CHANGE STARTS 120s AFTER TRIAL STARTS, but when it reverts thats customizable
             QTimer.singleShot(self.gasChangeSetTime, self.set_gases)
             
-            self.eventLog = {} #reset event log for trial
+            QTimer.singleShot(self.gasChangeSetTime, self.return_to_basal)
+
+            with open(os.path.join(self.savePath, f'gas_trial_{self.trialCounter}.json'), 'w') as f:
+                json.dump(self.eventLog, f, indent=4)
+            self.eventLog = {}
+            self.current_n2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+            self.current_co2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+            self.current_o2Edit.setStyleSheet("QTextEdit { background-color: none; }")
+            
 
         else:
              self.notConnected = QErrorMessage(self)
@@ -298,8 +328,8 @@ class APV_Interface(QMainWindow):
         }
         self.eventLog['gas_change'] = gasChangeDict
         print(type(self.eventLog))
-        with open(os.path.join(self.savePath, f'gas_trial_{self.trialCounter}.json'), 'w') as f:
-            json.dump(self.eventLog, f, indent=4)
+        
+        
         self.trialCounter+=1
 
 if __name__ == '__main__':
