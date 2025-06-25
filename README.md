@@ -1,6 +1,11 @@
 # vagalProcessingPipeline
 Processing pipeline that utilizes jnormcorre and cellpose to compress multi photon calcium imaging experiments of the vagal ganglia
 
+
+# Coming Soon:
+- Working on updates to analyze gas-change experiments
+- likely will rework processing pipeline to be cleaner and automatically generate expmtNotes by reading tiff metadata moving forward
+
 # Installation:
 ```
 git clone https://github.com/LKINSEY/vagalProcessingPipeline.git
