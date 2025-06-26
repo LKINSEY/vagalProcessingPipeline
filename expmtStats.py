@@ -6,9 +6,8 @@ import os, glob, pickle, cv2
 import matplotlib.pyplot as plt
 from skimage.transform import resize
 from scipy.signal import fftconvolve
-from extractResGalvoROIs import make_annotation_tif
 
-expmtList = glob.glob('U:/expmtRecords/res_galvo/Lucas*')
+expmtList = glob.glob('U:/expmtRecords/mech_galvo/Lucas*')
 
 def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
@@ -84,9 +83,9 @@ def count_cells(expmtPath):
         f' \t\t {np.sum(cellCounts["WGA-/GCaMP+"].values)}'
     )
 
-
-# for expmt in expmtList:
-#     count_cells(expmt)
+expmtList = glob.glob('U:/expmtRecords/gas_expmts/*')
+for expmt in expmtList:
+    count_cells(expmt)
 
 
 #%%

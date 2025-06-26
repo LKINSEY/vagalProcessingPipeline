@@ -485,8 +485,10 @@ if __name__=='__main__':
         'C:/Analysis/april_data/Lucas*',
         'U:/expmtRecords/res_galvo/Lucas*',
         'U:/expmtRecords/mech_galvo/Lucas*',
+        'U:/expmtRecords/complex_expmts/*',
+        'U:/expmtRecords/gas_expmts/*001*',
         ]
-    expmtRecords = glob.glob(dataFrom[2])
+    expmtRecords = glob.glob(dataFrom[5])
     plt.close('all')
     for expmt in expmtRecords:
         print('Loading Traces for \n', expmt)
