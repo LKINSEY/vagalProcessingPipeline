@@ -14,7 +14,7 @@ expmtFiles = glob.glob('U:/expmtRecords/gas_expmts/*')
 
 
 def extract_roi_traces(expmtPath):
-    print('\nExtracting:\n',expmt, flush=False)
+    print('\nExtracting:\n',expmtPath, flush=False)
     pad = 25 
     trialPaths = glob.glob(expmtPath+'/TSeries*')    
     redZStack = glob.glob(expmtPath+'/ZSeries*/ZSeries*Ch1*.tif')[0]
@@ -33,7 +33,7 @@ def extract_roi_traces(expmtPath):
     if lungLabel == 'WGA594':
         wgaStack = tif.imread(redZStack)
 
-    if os.path.exists(expmt+'/expmtTraces.pkl'):
+    if os.path.exists(expmtPath+'/expmtTraces.pkl'):
         print('Traces Already Extracted')
         return None
     else:
@@ -124,7 +124,7 @@ def extract_roi_traces(expmtPath):
             print('No ROIs segmented yet')
     return dataDict
 
-def register_trials(expmtPath, regParams):
+def register_trials(expmtPath, regParams, metaData):
     print('Registering:\n', expmtPath)
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
@@ -319,6 +319,63 @@ def extract_metaData(expmt):
         trialMeta['relTime'] = np.array(relTime)
         trialMeta['absTime'] = np.array(absTime)
         metaData[tidx] = trialMeta
+
+        #Clearing just to be confident it is cleared
+        del root
+        del child
+
+        #extract zStack/ZSeries metadata 
+        zstackMeta = {}
+        stackPath = glob.glob(expmt+'/ZSeries*')[0]
+        metaDataFN = os.path.join(
+            stackPath, 
+            [FN for FN in os.listdir(stackPath) if 'VoltageRecording' not in FN and '.xml' in FN][0]
+            )
+        
+        try:
+            md= ET.parse(metaDataFN)
+        except FileNotFoundError:
+            print(f'Error Extracting ZStack Metadata')
+            metaData['zstack'] = {}
+            return metaData
+        root = md.getroot()
+        
+        #Extracting PVStateShard for ZSeries, state shard is nested in root[1] always
+        for child in root[1]:
+            if child.attrib.get('value'):
+                trialMeta[child.attrib.get('key')] = child.attrib.get('value')
+            else:
+                if child.attrib.get('key') == 'laserPower':
+                    laserDict = {}
+                    for idx in range(len(child)):
+                        laserDict[child[idx].attrib.get('description')] = child[idx].attrib.get('value')
+                    trialMeta[child.attrib.get('key')] = laserDict
+                elif child.attrib.get('key') == 'laserWavelength':
+                    trialMeta[child.attrib.get('key')] = child[0].attrib.get('value')
+                elif child.attrib.get('key') == 'micronsPerPixel':
+                    micronPerPixelDict = {}
+                    for idx in range(len(child)):
+                        micronPerPixelDict[child[idx].attrib.get('index')] = child[idx].attrib.get('value')
+                    trialMeta[child.attrib.get('key')] = micronPerPixelDict
+                elif child.attrib.get('key') == 'pmtGain':
+                    pmtGainDict = {}
+                    for idx in range(len(child)):
+                        pmtGainDict[child[idx].attrib.get('description')] = child[idx].attrib.get('value')
+                    trialMeta[child.attrib.get('key')] = pmtGainDict
+
+        #Extracting motor positions of each slice, nested in root[2] always
+        zstackMeta['nSlices'] = len(root[2])-1 #subtracting the first tage <PVShard />
+        
+        sliceNum = 0
+        for child in root[2]:
+            if child.tag =='Frame':
+                sliceMotorPos = {}
+                for idx in range(len(child[3][0])):
+                    sliceMotorPos[child[3][0][idx].attrib.get('index')] = child[3][0][idx][0].attrib.get('value')
+                zstackMeta[sliceNum] = sliceMotorPos
+            sliceNum+=1
+
+        metaData['zstack'] = zstackMeta
     return metaData
                 
 
