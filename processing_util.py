@@ -620,16 +620,13 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
     nConditions = len(np.where(trialsBool==True)[0])
     conditions = notes['stim_type'].values[trialsBool]
     frameRate = notes['frame_rate'].values[trialsBool]
-    roi = roiChoice
-    if roi in gcampROIs:
-        plottingColor = '#8A2BE2'
-    else:
-        plottingColor = '#32CD32'
+
+
 
     #plotting roi according to condition
     if nConditions>1:
         fig, ax = plt.subplots(nConditions, 1, sharex=False, constrained_layout=True)
-        fig.suptitle(f'ROI {roi}')
+        
 
         for conditionIDX in range(nConditions):
             fps = frameRate[conditionIDX]
@@ -637,8 +634,12 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
             trial = trialIndices[conditionIDX]
             trialROIs = traces[f'T{trial}_roiOrder']
             roi = trialROIs[roiChoice]
+            fig.suptitle(f'ROI {roi}')
             rawF = traces[trial][:,roiChoice].T
-            
+            if roi in gcampROIs:
+                plottingColor = '#8A2BE2'
+            else:
+                plottingColor = '#32CD32'
             if conditionStr == 'baseline':
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
@@ -691,6 +692,13 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
 
     else: #assuming single condition trial sets are NOT mechanical stimulation trials... because whats the point then?
         fig, ax = plt.subplots()
+        trialROIs = traces[f'T{trial}_roiOrder']
+        roi = trialROIs[roiChoice]
+        fig.suptitle(f'ROI {roi}')
+        if roi in gcampROIs:
+            plottingColor = '#8A2BE2'
+        else:
+            plottingColor = '#32CD32'
         trial = trialIndices[0]
         fps = frameRate[0]
         conditionStr = conditions[0]
