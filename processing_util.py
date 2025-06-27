@@ -618,7 +618,9 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
         int(trial): np.array([t, nROIS])
     }
     '''
-
+    uL = 0.75 #setting to set default upper limit
+    lL = -0.25 #default for setting lower limit
+    
     #Extracting MetaData from Only Relevant Trials
     nTrials = len(trialsBool)
     trialIndices = np.arange(nTrials)[trialsBool]
@@ -648,7 +650,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
             if conditionStr == 'baseline':
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
-                upperLimit = max(1.5, max(dFF))
+                upperLimit = max(uL, max(dFF))
                 ax[conditionIDX].plot(dFF, color=plottingColor)
                 ax[conditionIDX].axhline(0, color='black', alpha=0.5)
                 ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
@@ -657,7 +659,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
             elif 'gas' in conditionStr:
                 f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
                 dFF = (rawF - f0)/f0
-                upperLimit = max(1.5, max(dFF))
+                upperLimit = max(uL, max(dFF))
                 ax[conditionIDX].plot(dFF, color=plottingColor)
                 ax[conditionIDX].axhline(0, color='black', alpha=0.5)
                 ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
@@ -688,7 +690,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
                     ax[conditionIDX].set_xlim([-beggining, end])
 
                 dFF = (plottingF - f0)/f0
-                upperLimit = max(1.5, max(dFF))
+                upperLimit = max(uL, max(dFF))
                 ax[conditionIDX].axvline(0, color='black', alpha=0.2)
                 ax[conditionIDX].plot(xAxis, dFF, color=plottingColor)
                 ax[conditionIDX].set_ylim([-0.2, upperLimit])
@@ -713,7 +715,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
         if conditionStr == 'baseline':
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
-                upperLimit = max(1.5, max(dFF))
+                upperLimit = max(uL, max(dFF))
                 ax.plot(dFF, color=plottingColor)
                 ax.axhline(0, color='black', alpha=0.5)
                 ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
@@ -721,7 +723,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
         elif 'gas' in conditionStr:
             f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
             dFF = (rawF - f0)/f0
-            upperLimit = max(1.5, max(dFF))
+            upperLimit = max(uL, max(dFF))
             ax.plot(dFF, color=plottingColor)
             ax.axhline(0, color='black', alpha=0.5)
             ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
