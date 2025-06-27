@@ -620,7 +620,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
     '''
     uL = 0.75 #setting to set default upper limit
     lL = -0.25 #default for setting lower limit
-    
+
     #Extracting MetaData from Only Relevant Trials
     nTrials = len(trialsBool)
     trialIndices = np.arange(nTrials)[trialsBool]
@@ -651,19 +651,21 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
                 upperLimit = max(uL, max(dFF))
+                lowerLimit = min(lL, min(dFF))
                 ax[conditionIDX].plot(dFF, color=plottingColor)
                 ax[conditionIDX].axhline(0, color='black', alpha=0.5)
                 ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-                ax[conditionIDX].set_ylim([-0.2, upperLimit])
+                ax[conditionIDX].set_ylim([lowerLimit, upperLimit])
             
             elif 'gas' in conditionStr:
                 f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
                 dFF = (rawF - f0)/f0
                 upperLimit = max(uL, max(dFF))
+                lowerLimit = min(lL, min(dFF))
                 ax[conditionIDX].plot(dFF, color=plottingColor)
                 ax[conditionIDX].axhline(0, color='black', alpha=0.5)
                 ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-                ax[conditionIDX].set_ylim([-1.0, upperLimit])
+                ax[conditionIDX].set_ylim([lowerLimit, upperLimit])
 
             #currently assuming all else is mechanical stim trials
             else: 
@@ -691,9 +693,10 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
 
                 dFF = (plottingF - f0)/f0
                 upperLimit = max(uL, max(dFF))
+                lowerLimit = min(lL, min(dFF))
                 ax[conditionIDX].axvline(0, color='black', alpha=0.2)
                 ax[conditionIDX].plot(xAxis, dFF, color=plottingColor)
-                ax[conditionIDX].set_ylim([-0.2, upperLimit])
+                ax[conditionIDX].set_ylim([lowerLimit, upperLimit])
                 ax[conditionIDX].axhline(0, color='black', alpha=0.2)
                 ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
 
@@ -716,18 +719,20 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
                 upperLimit = max(uL, max(dFF))
+                lowerLimit = min(lL, min(dFF))
                 ax.plot(dFF, color=plottingColor)
                 ax.axhline(0, color='black', alpha=0.5)
                 ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-                ax.set_ylim([-0.2, upperLimit])
+                ax.set_ylim([lowerLimit, upperLimit])
         elif 'gas' in conditionStr:
             f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
             dFF = (rawF - f0)/f0
             upperLimit = max(uL, max(dFF))
+            lowerLimit = min(lL, min(dFF))
             ax.plot(dFF, color=plottingColor)
             ax.axhline(0, color='black', alpha=0.5)
             ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-            ax.set_ylim([-1.0, upperLimit])
+            ax.set_ylim([lowerLimit, upperLimit])
 
     return fig
 
