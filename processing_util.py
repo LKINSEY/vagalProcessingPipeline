@@ -741,7 +741,7 @@ def extract_metaData(expmt):
         
         root = md.getroot()
         trialMeta = {}
-        
+        trialMeta['datetime'] = root.attrib.get('date')
         #Extracting PVStateShard for trial, state shard is nested in root[1] always
         for child in root[1]:
             if child.attrib.get('value'):
