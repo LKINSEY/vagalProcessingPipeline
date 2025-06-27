@@ -713,7 +713,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
                 ax.axhline(0, color='black', alpha=0.5)
                 ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
                 ax.set_ylim([-0.2, upperLimit])
-        elif conditionStr == 'gas':
+        elif 'gas' in conditionStr:
             f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
             dFF = (rawF - f0)/f0
             upperLimit = max(1.5, max(dFF))
