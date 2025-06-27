@@ -387,9 +387,9 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         ax.set_xticklabels(xAxis)
         ax.set_xticks(xAxis)
 
-        ax.axvline(2, label='Gas Delivered At Start', color='blue')
-        ax.axvline(4, label='Return to Basal Condition at Start', color='black')
-        ax.legend()
+        ax.axvline(2-.5, label='Delivery', color='blue')
+        ax.axvline(4-.5, label='Basal', color='black')
+        ax.legend(bbox_to_anchor=(1.25,1.05))
         fig.tight_layout()  
 
 
