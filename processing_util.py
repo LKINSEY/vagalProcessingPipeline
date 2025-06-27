@@ -514,22 +514,27 @@ def summerize_experiment(expmtPath, dataDict):
     #iterate through FOVs that are defined as slices in manually curated metadata notes
     for trialSet in trialSets:
         
-        #Load Segmentations - dependent on method set up as of 6-5-25
-        segFN = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{trialSet}_seg.npy')[0]
-        masksLoaded = np.load(segFN, allow_pickle=True).item()
-        masks = masksLoaded['masks']
-        gcampROIs = np.unique(masks[2,:,:])[1:]
-        colabeledROIs = np.unique(masks[1,:,:])[1:]
-        gcampCenters = [center_of_mass(masks[2,:,:]==roi) for roi in gcampROIs]
-        colabeledCenters = [center_of_mass(masks[1,:,:]==roi) for roi in colabeledROIs]
-        firstTrialInSet = trialIndices[slicePerTrial==trialSet][0]
-        maskIM = dataDict[f'T{firstTrialInSet}_masksIM']
-        if maskIM.shape[0] == 3:
-            maskIM = np.permute_dims(maskIM, (1,2,0))
-        outlinesIM = dataDict[f'T{firstTrialInSet}_outlinesIM']
-        outlinesIM = outlinesIM*2.2
-        if outlinesIM.shape[0] == 3:
-            outlinesIM = np.permute_dims(outlinesIM, (1,2,0))
+        try:
+            #Load Segmentations - dependent on method set up as of 6-5-25
+            segFN = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{trialSet}_seg.npy')[0]
+            masksLoaded = np.load(segFN, allow_pickle=True).item()
+            masks = masksLoaded['masks']
+            gcampROIs = np.unique(masks[2,:,:])[1:]
+            colabeledROIs = np.unique(masks[1,:,:])[1:]
+            gcampCenters = [center_of_mass(masks[2,:,:]==roi) for roi in gcampROIs]
+            colabeledCenters = [center_of_mass(masks[1,:,:]==roi) for roi in colabeledROIs]
+            firstTrialInSet = trialIndices[slicePerTrial==trialSet][0]
+            maskIM = dataDict[f'T{firstTrialInSet}_masksIM']
+            if maskIM.shape[0] == 3:
+                maskIM = np.permute_dims(maskIM, (1,2,0))
+            outlinesIM = dataDict[f'T{firstTrialInSet}_outlinesIM']
+            outlinesIM = outlinesIM*2.2
+            if outlinesIM.shape[0] == 3:
+                outlinesIM = np.permute_dims(outlinesIM, (1,2,0))
+        except IndexError:
+            print('Ignoring Placeholder Sets')
+            pdfSummary.close()
+            return
         
         #Set Up Save Dir
         figureDR = Path(expmtPath)/'figures'
