@@ -692,6 +692,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
 
     else: #assuming single condition trial sets are NOT mechanical stimulation trials... because whats the point then?
         fig, ax = plt.subplots()
+        trial = trialIndices[0]
         trialROIs = traces[f'T{trial}_roiOrder']
         roi = trialROIs[roiChoice]
         fig.suptitle(f'ROI {roi}')
