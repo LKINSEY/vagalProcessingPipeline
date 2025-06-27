@@ -361,7 +361,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         ax.set_xlabel(xlabel)
         fig.tight_layout()
     
-    elif conditionStr == 'gas':
+    elif 'gas' in conditionStr:
         #gas will plot mean of each cycle
         # np.where()
         # print(np.where(np.diff(((np.isnan(rawF[1,:]).astype(int))*-1)+1)==1)[0][0])
@@ -648,7 +648,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
                 ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
                 ax[conditionIDX].set_ylim([-0.2, upperLimit])
             
-            elif conditionStr == 'gas':
+            elif 'gas' in conditionStr:
                 f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
                 dFF = (rawF - f0)/f0
                 upperLimit = max(1.5, max(dFF))
