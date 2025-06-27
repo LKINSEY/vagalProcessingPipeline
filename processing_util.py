@@ -343,33 +343,66 @@ def sync_traces(expmtPath, dataDict):
     return traceDict 
 
 def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
+    rawF = traces[trial].T
     xlabel = notes['frame_rate'][trial]
+
     if conditionStr == 'baseline':
-        rawF = traces[trial].T
+        
         f0 = np.nanmean(rawF[:40])
         dFF = (rawF - f0)/f0
-        if dFF.shape[0] <= 2:
-            normalizedDFF = dFF
-        else:
-            normalizedDFF = (dFF - np.nanmean(dFF, axis=0)) / np.nanstd(dFF, axis=0)
 
         roiLabels = traces[f'T{trial}_roiOrder']
         fig, ax = plt.subplots()
         fig.suptitle(f'Trial {trial}\n{conditionStr}')
-        ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
+        ax.imshow(dFF, aspect='auto',  interpolation='none', cmap='Greens')
         ax.set_yticks(np.arange(len(roiLabels)))
         ax.set_yticklabels(roiLabels)
         ax.get_xaxis().set_visible(False)
         ax.set_xlabel(xlabel)
         fig.tight_layout()
-    else:
+    
+    elif conditionStr == 'gas':
+        #gas will plot mean of each cycle
+        # np.where()
+        # print(np.where(np.diff(((np.isnan(rawF[1,:]).astype(int))*-1)+1)==1)[0][0])
+        jump = np.where(np.diff(((np.isnan(rawF[1,:]).astype(int))*-1)+1)==1)[0][0]
+        cycle = 0
+        cycleAvgs = []
+        for idx in range(jump, rawF.shape[1], jump):
+            print('cycle', idx)
+            cycleTrace = rawF[:,cycle:cycle+jump]
+            cycleAvgs.append(np.nanmean(cycleTrace, axis=1))
+            cycle+=jump
+        rawAvgs = np.array(cycleAvgs).T
+        xAxis = np.arange(rawAvgs.shape[1])
+        normalizedDFF = (rawAvgs - np.nanmean(rawAvgs, axis=0)) / np.nanstd(rawAvgs, axis=0)
+        roiLabels = traces[f'T{trial}_roiOrder']
+        fig, ax = plt.subplots()
+        fig.suptitle(f'Trial {trial}\n{conditionStr} (Avg Cycle)')
+        ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
+        ax.set_yticks(np.arange(0, len(roiLabels), 5))
+        ax.set_yticklabels(roiLabels[::5])
+        
+        ax.set_xlabel('Cycle Number')
+        ax.set_xticklabels(xAxis)
+        ax.set_xticks(xAxis)
+
+        ax.axvline(2, label='Gas Delivered At Start', color='blue')
+        ax.axvline(4, label='Return to Basal Condition at Start', color='black')
+        ax.legend()
+        fig.tight_layout()  
+
+
+        return fig
+
+
+    else: #assuming all other types of trials are mechanical stim trials
         if notes['stim_frame'].values[0]=='voltage':
             stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
             sync = True
         else:
             stimFrame = notes['stim_frame'][trial]
             sync = False
-        rawF = traces[trial].T
         #TODO: will need to generalize this for any type of 2p experiment...
         if 'mech_galvo' in expmt:
             stepping = 5
@@ -382,7 +415,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             else:
                 end = 30
         else:
-            stepping = 5
+            stepping = 50
             refTrace = rawF[-1,:]
             if stimFrame >=150:
                 beggining = 150
@@ -682,9 +715,6 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
 
     return fig
 
-
-
-
 def extract_metaData(expmt):
     trials = glob.glob(expmt+'/TSeries*/')
     metaData = {}
@@ -805,3 +835,4 @@ def extract_metaData(expmt):
                 
 
     
+# %%
