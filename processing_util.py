@@ -573,166 +573,114 @@ def find_stim_frame(ventilatorTrace, condition):
     return stimFrame[0]
 
 def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROIs):
+    '''
+    trialsBool = [0,0,0,0,1,1,1,1,0,0,0,0], where len(trialsBool) = number of trials
+    roiChoice = int(21)
+    traces = dictionary{
+        int(trial): np.array([t, nROIS])
+    }
+    '''
+
+    #Extracting MetaData from Only Relevant Trials
     nTrials = len(trialsBool)
     trialIndices = np.arange(nTrials)[trialsBool]
     nConditions = len(np.where(trialsBool==True)[0])
     conditions = notes['stim_type'].values[trialsBool]
     frameRate = notes['frame_rate'].values[trialsBool]
-    if nConditions ==1:
-        fig, ax = plt.subplots()
-        fps = frameRate[0]
-        conditionStr = conditions[0]
-        trial = trialIndices[0]
-        trialROIs = traces[f'T{trial}_roiOrder']
-        roi = trialROIs[roiChoice]
-        fig.suptitle(f'ROI {roi}')
-        if roi in gcampROIs:
-                wgaPositive = False
-        else:
-            wgaPositive = True
-        try:
-            rawF = traces[trial][:,roiChoice].T
-        except IndexError:
-            print('Improper ROI count, redo processing')
-        if conditionStr == 'baseline':
-                f0 = np.nanmean(rawF[:round(len(rawF)/4)])
-                dFF = (rawF - f0)/f0
-                if wgaPositive:
-                    ax.plot(dFF, color='#32CD32')
-                else:
-                    ax.plot(dFF, color='#8A2BE2')
-                
-                ax.axhline(0, color='black', alpha=0.5)
-                ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-        else:
-            if notes['stim_frame'].values[0]=='voltage':
-                stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
-            else:
-                stimFrame = notes['stim_frame'][trial]
-            if fps <=4:
-                if stimFrame>=21:
-                    beggining = 20
-                else:
-                    beggining = 0
-                if stimFrame+30 > len(rawF):
-                    end = len(rawF) - stimFrame
-                else:
-                    end = 30
-            else:
-                voltageTrace = rawF[-1,:]
-                if stimFrame >=150:
-                    beggining = 150
-                else:
-                    beggining = 0
-                
-                if stimFrame + 300 > len(voltageTrace):
-                    end = len(voltageTrace) - stimFrame
-                else:
-                    end = 300
-            
-            if beggining == 0:
-                f0 = np.nanmean(rawF[0:stimFrame])
-                plottingF = rawF[beggining:stimFrame+end]
-                ax.axvline(0, color='black', alpha=0.2)
-                xAxis = np.arange(-stimFrame, end)
-                dFF = (plottingF - f0)/f0
-                if wgaPositive:
-                    ax.plot(xAxis, dFF, color='#32CD32')
-                else:
-                    ax.plot(xAxis, dFF, color='#8A2BE2')
-                ax.set_xlim([-stimFrame, end])
-            else:
-                f0 = np.nanmean(rawF[beggining:stimFrame])
-                plottingF = rawF[stimFrame - beggining:stimFrame+end]
-                ax.axvline(0, color='black', alpha=0.2)
-                xAxis = np.arange(-beggining, end)
-                dFF = (plottingF - f0)/f0
-                if wgaPositive:
-                    ax.plot(xAxis, dFF, color='#32CD32')
-                else:
-                    ax.plot(xAxis, dFF, color='#8A2BE2')
-                ax.set_xlim([-beggining, end])
-            ax.axhline(0, color='black', alpha=0.2)
-            ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+    roi = roiChoice
+    if roi in gcampROIs:
+        plottingColor = '#8A2BE2'
     else:
+        plottingColor = '#32CD32'
+
+    #plotting roi according to condition
+    if nConditions>1:
         fig, ax = plt.subplots(nConditions, 1, sharex=False, constrained_layout=True)
-        for condition in range(nConditions):
-            fps = frameRate[condition]
-            conditionStr = conditions[condition]
-            trial = trialIndices[condition]
+        fig.suptitle(f'ROI {roi}')
+
+        for conditionIDX in range(nConditions):
+            fps = frameRate[conditionIDX]
+            conditionStr = conditions[conditionIDX]
+            trial = trialIndices[conditionIDX]
             trialROIs = traces[f'T{trial}_roiOrder']
             roi = trialROIs[roiChoice]
-            fig.suptitle(f'ROI {roi}')
-            if roi in gcampROIs:
-                wgaPositive = False
-            else:
-                wgaPositive = True
-            try:
-                rawF = traces[trial][:,roiChoice].T #1D
-            except IndexError:
-                print('Improper ROI count, redo processing')
+            rawF = traces[trial][:,roiChoice].T
+            
             if conditionStr == 'baseline':
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
-                if wgaPositive:
-                    ax[condition].plot(dFF, color='#32CD32')
-                else:
-                    ax[condition].plot(dFF, color='#8A2BE2')
-                
-                ax[condition].axhline(0, color='black', alpha=0.5)
-                ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
-            else:
+                upperLimit = max(1.5, max(dFF))
+                ax[conditionIDX].plot(dFF, color=plottingColor)
+                ax[conditionIDX].axhline(0, color='black', alpha=0.5)
+                ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+                ax[conditionIDX].set_ylim([-0.2, upperLimit])
+            
+            elif conditionStr == 'gas':
+                f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
+                dFF = (rawF - f0)/f0
+                upperLimit = max(1.5, max(dFF))
+                ax[conditionIDX].plot(dFF, color=plottingColor)
+                ax[conditionIDX].axhline(0, color='black', alpha=0.5)
+                ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+                ax[conditionIDX].set_ylim([-1.0, upperLimit])
+
+            #currently assuming all else is mechanical stim trials
+            else: 
                 if notes['stim_frame'].values[0]=='voltage':
                     stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
                 else:
                     stimFrame = notes['stim_frame'][trial]
-                if fps <=4:
-                    if stimFrame>=21:
-                        beggining = 20
-                    else:
-                        beggining = 0
-                    if stimFrame+30 > len(rawF):
-                        end = len(rawF) - stimFrame
-                    else:
-                        end = 30
-                else:
-                    # voltageTrace = rawF[-1,:]
-                    if stimFrame >=150:
-                        beggining = 150
-                    else:
-                        beggining = 0
-                    
-                    if stimFrame + 300 > len(rawF):
-                        end = len(rawF) - stimFrame
-                    else:
-                        end = 300
                 
+                #currently logic is based off manually curated metadata
+                if fps <= 4:
+                    beggining = 20 if stimFrame>= 21 else 0
+                    end = (len(rawF) - stimFrame) if (stimFrame+30>len(rawF)) else 30
+                else:
+                    beggining = 150 if stimFrame >=150 else 0
+                    end = (len(rawF)-stimFrame) if (stimFrame+300 > len(rawF)) else 300
+                f0 = np.nanmean(rawF[beggining:stimFrame])
                 if beggining == 0:
-                    f0 = np.nanmean(rawF[0:stimFrame])
                     plottingF = rawF[beggining:stimFrame+end]
-                    ax[condition].axvline(0, color='black', alpha=0.2)
                     xAxis = np.arange(-stimFrame, end)
-                    dFF = (plottingF - f0)/f0
-                    if wgaPositive:
-                        ax[condition].plot(xAxis, dFF, color='#32CD32')
-                    else:
-                        ax[condition].plot(xAxis, dFF, color='#8A2BE2')
-                    ax[condition].set_xlim([-stimFrame, end])
+                    ax[conditionIDX].set_xlim([-stimFrame, end])
                 else:
-                    f0 = np.nanmean(rawF[beggining:stimFrame])
                     plottingF = rawF[stimFrame - beggining:stimFrame+end]
-                    ax[condition].axvline(0, color='black', alpha=0.2)
                     xAxis = np.arange(-beggining, end)
-                    dFF = (plottingF - f0)/f0
-                    if wgaPositive:
-                        ax[condition].plot(xAxis, dFF, color='#32CD32')
-                    else:
-                        ax[condition].plot(xAxis, dFF, color='#8A2BE2')
-                    ax[condition].set_xlim([-beggining, end])
-                
-                ax[condition].axhline(0, color='black', alpha=0.2)
-                ax[condition].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+                    ax[conditionIDX].set_xlim([-beggining, end])
 
+                dFF = (plottingF - f0)/f0
+                upperLimit = max(1.5, max(dFF))
+                ax[conditionIDX].axvline(0, color='black', alpha=0.2)
+                ax[conditionIDX].plot(xAxis, dFF, color=plottingColor)
+                ax[conditionIDX].set_ylim([-0.2, upperLimit])
+                ax[conditionIDX].axhline(0, color='black', alpha=0.2)
+                ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+
+    else: #assuming single condition trial sets are NOT mechanical stimulation trials... because whats the point then?
+        fig, ax = plt.subplots()
+        trial = trialIndices[0]
+        fps = frameRate[0]
+        conditionStr = conditions[0]
+        trial = trialIndices[0]
+        rawF = traces[trial][:,roiChoice].T
+        if conditionStr == 'baseline':
+                f0 = np.nanmean(rawF[:round(len(rawF)/4)])
+                dFF = (rawF - f0)/f0
+                upperLimit = max(1.5, max(dFF))
+                ax.plot(dFF, color=plottingColor)
+                ax.axhline(0, color='black', alpha=0.5)
+                ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+                ax.set_ylim([-0.2, upperLimit])
+        elif conditionStr == 'gas':
+            f0 = np.nanmean(rawF[:120]) #baseline is the basal condition cycle
+            dFF = (rawF - f0)/f0
+            upperLimit = max(1.5, max(dFF))
+            ax.plot(dFF, color=plottingColor)
+            ax.axhline(0, color='black', alpha=0.5)
+            ax.set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
+            ax.set_ylim([-1.0, upperLimit])
+
+    return fig
 
 
 
