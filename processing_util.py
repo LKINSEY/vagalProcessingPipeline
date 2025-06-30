@@ -149,7 +149,7 @@ def register_trials(expmtPath, regParams, metaData):
         if len(registeredTrials) <1:
             print(f'Reading Trial {trialCounter} Cycles...')
             if len(trialCycles_ch1)>1:
-                multiCycleFlag = True:
+                multiCycleFlag = True
             for cycleIDX in range(len(trialCycles_ch1)):
                 print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
                 cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
