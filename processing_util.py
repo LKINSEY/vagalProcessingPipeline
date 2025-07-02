@@ -132,6 +132,7 @@ def register_trials(expmtPath, regParams):
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
     zSeriesPathGCaMP = glob.glob(expmtPath+'/ZSeries*/*Ch2*.tif')[0]
+    multiCycleFlag = False
     try:
         expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
     except IndexError:
@@ -139,6 +140,7 @@ def register_trials(expmtPath, regParams):
         return
     slices = expmtNotes['slice_label'].values
     trialCounter = 1
+    template=None #by default and to avoid accidental errors
     for trial in trialPaths:
         trialIDX = trialCounter-1
         trialCycles_ch1 = glob.glob(trial+'/TSeries*Ch1*.tif')
@@ -146,10 +148,19 @@ def register_trials(expmtPath, regParams):
         registeredTrials = glob.glob(trial+'/rT*_C*_ch*.tif')
         if len(registeredTrials) <1:
             print(f'Reading Trial {trialCounter} Cycles...')
+            if len(trialCycles_ch1)>1:
+                multiCycleFlag = True
             for cycleIDX in range(len(trialCycles_ch1)):
                 print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
                 cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
-                registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath)
+                if multiCycleFlag:
+                    if cycleIDX == 0:
+                        registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath, prevTemplate=None)
+                        template = np.nanmean(registeredCycle_ch2)
+                    else:
+                        registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath, prevTemplate=template)
+                else:
+                    registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath)
                 correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>59000, np.nan, registeredCycle_ch2[:])
                 mIM = np.nanmean(correctedRegisteredCycle_ch2, axis=0)    
                 trialSlice = slices[trialIDX]                
@@ -221,7 +232,7 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
     tif.imwrite(annTifFN,annTiff)
     return annTiff
 
-def register_tSeries(rawData, regParams, expmtPath, compareRaw=False):
+def register_tSeries(rawData, regParams, expmtPath, prevTemplate = None, compareRaw=False):
     max_shifts = regParams['maxShifts']
     frames_per_split = regParams['frames_per_split']
     num_splits_to_process_rig = regParams['num_splits_to_process_rig']
@@ -232,10 +243,13 @@ def register_tSeries(rawData, regParams, expmtPath, compareRaw=False):
     overlaps = regParams['overlaps']
     max_deviation_rigid = regParams['max_deviation_rigid']
 
-    if 'mech_galvo' in expmtPath:
-        template = np.nanmean(rawData[:5, :,:], axis=0)
+    if prevTemplate:
+        template = prevTemplate
     else:
-        template = np.nanmean(rawData[:,:,:], axis=0) #use mean image to register
+        if 'mech_galvo' in expmtPath:
+            template = np.nanmean(rawData[:5, :,:], axis=0)
+        else:
+            template = np.nanmean(rawData[:,:,:], axis=0) #use mean image to register
 
     #template used in motion corrector object, which
     corrector = jnormcorre.motion_correction.MotionCorrect(rawData, max_shifts=max_shifts, frames_per_split=frames_per_split,
