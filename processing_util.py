@@ -127,7 +127,7 @@ def extract_roi_traces(expmtPath):
             print('No ROIs segmented yet')
     return dataDict
 
-def register_trials(expmtPath, regParams, metaData):
+def register_trials(expmtPath, regParams):
     print('Registering:\n', expmtPath)
     trialPaths = glob.glob(expmtPath+'/TSeries*')
     zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
@@ -293,16 +293,19 @@ def sync_traces(expmtPath, dataDict):
         if trial not in dataDict.keys():
             continue
         print(f'\rSyncing traces for trial {trial+1}/{len(trialPaths)}', end='',flush=True)
-        stimFrame = stimFrames[trial]
-        trialPath = trialPaths[trial]
-        nCycles = len(glob.glob(trialPath+'/rT*_C*_ch2.tif'))
-        gCaMPOnly = dataDict[trial][f'T{trial}_roiFeatures']['gCaMP_only_rois'] 
-        colabeledROIs = dataDict[trial][f'T{trial}_roiFeatures']['colabeled_rois']
-        if 0 in gCaMPOnly:
-            gCaMPOnly = gCaMPOnly[1:]
-        if 0 in colabeledROIs:
-            colabeledROIs = colabeledROIs[1:]
-        rois = np.unique(np.concat([colabeledROIs, gCaMPOnly]))
+        try:
+            stimFrame = stimFrames[trial]
+            trialPath = trialPaths[trial]
+            nCycles = len(glob.glob(trialPath+'/rT*_C*_ch2.tif'))
+            gCaMPOnly = dataDict[trial][f'T{trial}_roiFeatures']['gCaMP_only_rois'] 
+            colabeledROIs = dataDict[trial][f'T{trial}_roiFeatures']['colabeled_rois']
+            if 0 in gCaMPOnly:
+                gCaMPOnly = gCaMPOnly[1:]
+            if 0 in colabeledROIs:
+                colabeledROIs = colabeledROIs[1:]
+            rois = np.unique(np.concat([colabeledROIs, gCaMPOnly]))
+        except:
+            continue
         
         #iterate through registered cycle traces
         trialTraceArray = []
@@ -479,6 +482,43 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
 
     return fig
 
+def response_distribution(conditionStr, trial, traces, notes):
+    '''
+    Only call function if mechanical stimulation occurs, this function will
+    group cells based off their response characteristics
+    '''
+    rawF = traces[trial].T
+    rawF = rawF[:-1]#drop vent trace
+    fps = notes['frame_rate'][trial]
+    if notes['stim_frame'].values[trial]=='voltage':
+        stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
+    else:
+        stimFrame = notes['stim_frame'][trial]
+    
+    
+    if fps <= 4:
+        beggining = 20 if stimFrame >= 21 else 0
+        end = (len(rawF) - stimFrame) if (stimFrame+30>len(rawF)) else 30
+    else:
+        beggining = 150 if stimFrame >=150 else 0
+        end = (len(rawF)-stimFrame) if (stimFrame+300 > len(rawF)) else 300
+    
+    f0 = np.nanmean(rawF[beggining:stimFrame])
+    if beggining == 0:
+        psthWindowAVG_pre = np.nanmean(rawF[beggining:stimFrame], axis=1)
+        psthWindowAVG_post = np.nanmean(rawF[stimFrame:stimFrame+end], axis=1)
+    else:
+        psthWindowAVG_pre = np.nanmean(rawF[stimFrame - beggining:stimFrame], axis=1)
+        psthWindowAVG_post = np.nanmean(rawF[stimFrame:stimFrame+end], axis=1)
+    
+    changeDiff = psthWindowAVG_post - psthWindowAVG_pre
+    print(changeDiff.shape)
+    plt.bar(changeDiff)
+    rois = traces[f'T{trial}_roiOrder']
+    plt.xticks(rois)
+    plt.xlabel('ROI ID')
+
+
 def summerize_experiment(expmtPath, dataDict):
     '''
     traces.keys() = 0, 'T0_roiOrder', 1, 'T1_roiOrder', ect...
@@ -524,7 +564,7 @@ def summerize_experiment(expmtPath, dataDict):
             gcampCenters = [center_of_mass(masks[2,:,:]==roi) for roi in gcampROIs]
             colabeledCenters = [center_of_mass(masks[1,:,:]==roi) for roi in colabeledROIs]
             firstTrialInSet = trialIndices[slicePerTrial==trialSet][0]
-            maskIM = dataDict[f'T{firstTrialInSet}_masksIM']
+            maskIM = dataDict[f'T{firstTrialInSet+1}_masksIM']
             if maskIM.shape[0] == 3:
                 maskIM = np.permute_dims(maskIM, (1,2,0))
             outlinesIM = dataDict[f'T{firstTrialInSet}_outlinesIM']
@@ -579,6 +619,8 @@ def summerize_experiment(expmtPath, dataDict):
             for trialIDX in trialIndices[slicePerTrial==trialSet]:
                 fig = compare_all_ROIs(conditions[trialIDX],trialIDX,traces, expmtNotes, expmtPath)
                 plt.savefig(pdfSummary, format='pdf')
+
+
             
             #Plot individual ROIs according to condition
             trialsBool = slicePerTrial==trialSet
