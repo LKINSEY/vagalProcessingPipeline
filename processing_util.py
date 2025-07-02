@@ -386,7 +386,6 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         cycle = 0
         cycleAvgs = []
         for idx in range(jump, rawF.shape[1], jump):
-            print('cycle', idx)
             cycleTrace = rawF[:,cycle:cycle+jump]
             cycleAvgs.append(np.nanmean(cycleTrace, axis=1))
             cycle+=jump
@@ -559,7 +558,7 @@ def summerize_experiment(expmtPath, dataDict):
     trialSets = np.unique(slicePerTrial)
     conditions = expmtNotes['stim_type'].values
     if -1 in trialSets:
-        trialSets = trialSets[1:]
+        trialSets = trialSets[trialSets != -1]
     trialPaths = np.array(glob.glob(expmtPath+'/TSeries*'))
     nTrials = len(trialPaths)
     trialIndices = np.arange(nTrials)
