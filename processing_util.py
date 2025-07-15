@@ -642,15 +642,12 @@ def summerize_experiment(expmtPath, dataDict):
             fovBool = trialsBool
             rois = np.arange(len(traces[f'T{firstTrialInSet}_roiOrder']))
             for roi in rois:
-                print(f'ROI - {roi} - ***********************************')
-                print(f'\n ************* \n ************ \n ********** \n')
                 if plotsInFOV>6:
                     trialsUsing = np.where(fovBool.astype(int))[0]
                     blocks = np.where(fovBool.astype(int))[0][::6]
                     for ts in range(len(blocks)):
                         trialsBool = np.zeros((len(slicePerTrial),))
                         if blocks[ts] == blocks[-1]:
-                            print(trialsUsing[np.where(trialsUsing==blocks[ts])[0][0]:])
                             trialsBool[trialsUsing[np.where(trialsUsing==blocks[ts])[0][0]:]] = 1
                             fig = analyze_roi_across_conditions( trialsBool.astype(bool), roi, traces, expmtNotes, gcampROIs)
                             plt.savefig(pdfSummary, format='pdf')
@@ -659,7 +656,6 @@ def summerize_experiment(expmtPath, dataDict):
                             trialsBool[trialsUsing[ts:loci]]=1
                             fig = analyze_roi_across_conditions( trialsBool.astype(bool), roi, traces, expmtNotes, gcampROIs)
                             plt.savefig(pdfSummary, format='pdf')
-                    # print(trialsBool)
                 else:
                     fig = analyze_roi_across_conditions( trialsBool, roi, traces, expmtNotes, gcampROIs)
                 
