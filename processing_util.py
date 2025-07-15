@@ -421,6 +421,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
             sync = False
         #TODO: will need to generalize this for any type of 2p experiment...
         if 'mech_galvo' in expmt:
+            vLine = 20
             stepping = 5
             if stimFrame>=21:
                 beggining = 20
@@ -449,7 +450,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
                 plottingF = rawF[:-1,beggining:stimFrame+end]
                 ventTrace = ((rawF[-1,beggining:stimFrame+end])+.5)*4
                 xAxis = np.arange(-stimFrame, end,stepping)
-                vLine = stimFrame
+                
             else:
                 f0 = np.nanmean(rawF[:-1,stimFrame -beggining:stimFrame], axis=1)
                 f0 = np.reshape(f0, (f0.shape[0],1))
@@ -479,7 +480,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         fig, ax = plt.subplots()
         fig.suptitle(f'Trial {trial}\n{conditionStr}')
         im = ax.imshow(normalizedDFF, aspect='auto',  interpolation='none', cmap='Greens')
-        
+        vLine = beggining
         ax.axvline(vLine, color='black')
 
         ax.set_yticks(np.arange(0,len(roiLabels), roiSteps))
@@ -637,12 +638,36 @@ def summerize_experiment(expmtPath, dataDict):
             
             #Plot individual ROIs according to condition
             trialsBool = slicePerTrial==trialSet
+            plotsInFOV =len(np.where(trialsBool.astype(int))[0])
+            fovBool = trialsBool
             rois = np.arange(len(traces[f'T{firstTrialInSet}_roiOrder']))
             for roi in rois:
-                fig = analyze_roi_across_conditions( trialsBool, roi, traces, expmtNotes, gcampROIs)
-                plt.savefig(pdfSummary, format='pdf')
+                print(f'ROI - {roi} - ***********************************')
+                print(f'\n ************* \n ************ \n ********** \n')
+                if plotsInFOV>6:
+                    trialsUsing = np.where(fovBool.astype(int))[0]
+                    blocks = np.where(fovBool.astype(int))[0][::6]
+                    for ts in range(len(blocks)):
+                        trialsBool = np.zeros((len(slicePerTrial),))
+                        if blocks[ts] == blocks[-1]:
+                            print(trialsUsing[np.where(trialsUsing==blocks[ts])[0][0]:])
+                            trialsBool[trialsUsing[np.where(trialsUsing==blocks[ts])[0][0]:]] = 1
+                            fig = analyze_roi_across_conditions( trialsBool.astype(bool), roi, traces, expmtNotes, gcampROIs)
+                            plt.savefig(pdfSummary, format='pdf')
+                        else:
+                            loci = np.where(trialsUsing==blocks[ts+1])[0][0]
+                            trialsBool[trialsUsing[ts:loci]]=1
+                            fig = analyze_roi_across_conditions( trialsBool.astype(bool), roi, traces, expmtNotes, gcampROIs)
+                            plt.savefig(pdfSummary, format='pdf')
+                    # print(trialsBool)
+                else:
+                    fig = analyze_roi_across_conditions( trialsBool, roi, traces, expmtNotes, gcampROIs)
                 
-        except:
+                
+        except Exception as e:
+            print(e)
+            import traceback
+            traceback.print_exc()
             pdfSummary.close() 
             print('Plotting Error')
 
@@ -675,7 +700,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
     '''
     uL = 0.75 #setting to set default upper limit
     lL = -0.25 #default for setting lower limit
-
+    trialsBool = trialsBool.astype(bool)
     #Extracting MetaData from Only Relevant Trials
     nTrials = len(trialsBool)
     trialIndices = np.arange(nTrials)[trialsBool]
@@ -702,7 +727,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
                 plottingColor = '#8A2BE2'
             else:
                 plottingColor = '#32CD32'
-            if conditionStr == 'baseline':
+            if 'baseline' in conditionStr:
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
                 upperLimit = max(uL, max(dFF))
