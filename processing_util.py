@@ -658,6 +658,7 @@ def summerize_experiment(expmtPath, dataDict):
                             plt.savefig(pdfSummary, format='pdf')
                 else:
                     fig = analyze_roi_across_conditions( trialsBool, roi, traces, expmtNotes, gcampROIs)
+                    plt.savefig(pdfSummary, format='pdf')
                 
                 
         except Exception as e:
