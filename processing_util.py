@@ -8,9 +8,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Patch
 from pathlib import Path
 import xml.etree.ElementTree as ET
-import jnormcorre
-import jnormcorre.motion_correction
-import jnormcorre.utils.registrationarrays as registrationarrays
+# import jnormcorre
+# import jnormcorre.motion_correction
+# import jnormcorre.utils.registrationarrays as registrationarrays
+import masknmf
 from skimage.transform import resize
 from scipy.ndimage import center_of_mass
 
@@ -232,50 +233,30 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
     tif.imwrite(annTifFN,annTiff)
     return annTiff
 
-def register_tSeries(rawData, regParams, expmtPath, prevTemplate = None, compareRaw=False):
+def register_tSeries(rawData, regParams, expmtPath, prevTemplate = None):
     max_shifts = regParams['maxShifts']
     frames_per_split = regParams['frames_per_split']
-    num_splits_to_process_rig = regParams['num_splits_to_process_rig']
+    device = regParams['device']
     niter_rig = regParams['niter_rig']
-    save_movie = regParams['save_movie']
-    pw_rigid = regParams['pw_rigid']
-    strides = regParams['strides']
     overlaps = regParams['overlaps']
     max_deviation_rigid = regParams['max_deviation_rigid']
+    num_blocks = regParams['num_blocks']
 
-    if prevTemplate:
-        template = prevTemplate
-    else:
-        if 'mech_galvo' in expmtPath:
-            template = np.nanmean(rawData[:5, :,:], axis=0)
-        else:
-            template = np.nanmean(rawData[:,:,:], axis=0) #use mean image to register
+    #code copied from repo's demo
+    rigid_strategy = masknmf.RigidMotionCorrection(max_shifts = max_shifts)
+    pwrigid_strategy = masknmf.PiecewiseRigidMotionCorrection(num_blocks = num_blocks,
+                                                            overlaps = overlaps,
+                                                            max_rigid_shifts = max_shifts,
+                                                            max_deviation_rigid = max_deviation_rigid)
+    pwrigid_strategy = masknmf.motion_correction.compute_template(rawData,
+                                                                rigid_strategy,
+                                                                num_iterations_piecewise_rigid = niter_rig,
+                                                                pwrigid_strategy = pwrigid_strategy,
+                                                                device = device,
+                                                                batch_size = frames_per_split)
+    moco_results = masknmf.RegistrationArray(rawData, pwrigid_strategy, device = device)
 
-    #template used in motion corrector object, which
-    corrector = jnormcorre.motion_correction.MotionCorrect(rawData, max_shifts=max_shifts, frames_per_split=frames_per_split,
-                                                    num_splits_to_process_rig=num_splits_to_process_rig, strides=strides,
-                                                        overlaps=overlaps, 
-                                                        max_deviation_rigid = max_deviation_rigid, niter_rig=niter_rig,
-                                                        pw_rigid = pw_rigid)
-    frame_corrector, _ = corrector.motion_correct(template=template, save_movie=save_movie)
-    
-    frame_corrector.batching = regParams['frame_corrector_batching']
-    motionCorrectedData = registrationarrays.RegistrationArray(frame_corrector, rawData, pw_rigid=False)
-
-    #Flag for if user wants to compare raw data to registered data for visual inspection
-    if compareRaw:
-        from fastplotlib.widgets import ImageWidget
-        iw = ImageWidget(data = [rawData, motionCorrectedData], 
-                        names=["Raw", "Motion Corrected"], 
-                        histogram_widget = True)
-        iw.show()
-
-    #Come up with statistic that describes how much motion correction occured (indirectly assess experiment quality)
-    avgMoveRaw = np.nanmean(np.nanstd(rawData, axis=0))
-    avgMoveReg = np.nanmean(np.nanstd(motionCorrectedData[:], axis=0))
-    prepQuality = avgMoveRaw/avgMoveReg
-
-    return motionCorrectedData, prepQuality
+    return moco_results
 
 #Plotting and summary functions
 
