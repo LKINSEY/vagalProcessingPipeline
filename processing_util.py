@@ -128,75 +128,101 @@ def extract_roi_traces(expmtPath):
             print('No ROIs segmented yet')
     return dataDict
 
-def register_trials(expmtPath, regParams):
+def fft_rigid_cycle_moco_shifts(mIM, template):
+    '''
+    this method is for finding how much movement occurs from one cycle to another. Sometimes there is movement
+    if the prep is not solidified under the scope, sometimes mechanical stim moves things, ect.
+
+    We take 2 images:
+    mIM = (n,m) mean image of cycle
+    template = (n,m) mean image of FIRST cycle (or cycle we are going to use as our template)
+
+    Cross-Corr using FFT:
+    first multiply the real fft of the template by the complex conjugate of the real fft of the mIM
+    then take an inverse fft of this result
+    this produces a corr plane, where the max value of this plane represents the indices to shift the mIM
+    in order to register with the template
+
+    Shifting based of Argmax of Result
+    mIM needs to be padded first, then the shift occurs, then we trim the padding so that masks
+    can still be accurately overlayed onto the mIM in later trace extraction steps
+
+    To correct a cycle tiff, do:
+    np.roll(tiffArr, shift=shifts, axis=(1,2)
+    '''
+    C = np.fft.irfft2(
+        np.fft.rfft2(template) * np.conj(np.fft.rfft2(mIM))
+    )
+    # cShift = np.fft.fftshift(C,(0,1))
+    pxlPosX, pxlPosY = np.unravel_index(np.argmax(C), C.shape)
+    shifts = (pxlPosX , pxlPosY)
+    return shifts
+
+def register_2ch_trials(expmtPath, regParams):
+    '''
+    No Longer Supporting Registration using alternative WGA Conjugates
+    MUST have 2 channels recording moving forward
+    '''
     print('Registering:\n', expmtPath)
-    trialPaths = glob.glob(expmtPath+'/TSeries*')
-    zSeriesPathWGA = glob.glob(expmtPath+'/ZSeries*/*Ch1*.tif')[0]
-    zSeriesPathGCaMP = glob.glob(expmtPath+'/ZSeries*/*Ch2*.tif')[0]
-    multiCycleFlag = False
+    trialPaths = np.array(glob.glob(expmtPath+'/TSeries*'))
+    #omitting zstack loading for now since all experiments no longer use other WGA conjugates
+
+    #expmt notes check
     try:
         expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*')[0])
     except IndexError:
         print('Need to create expmtNotes for experiment! exiting...')
         return
-    slices = expmtNotes['slice_label'].values
-    trialCounter = 1
-    template=None #by default and to avoid accidental errors
-    for trial in trialPaths:
-        trialIDX = trialCounter-1
-        trialCycles_ch1 = glob.glob(trial+'/TSeries*Ch1*.tif')
-        trialCycles_ch2 = glob.glob(trial+'/TSeries*Ch2*.tif')
-        registeredTrials = glob.glob(trial+'/rT*_C*_ch*.tif')
-        if len(registeredTrials) <1:
-            print(f'Reading Trial {trialCounter} Cycles...')
-            if len(trialCycles_ch1)>1:
-                multiCycleFlag = True
-            for cycleIDX in range(len(trialCycles_ch1)):
-                print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
-                cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
-                if multiCycleFlag:
+    
+    fovPerTrial = expmtNotes['slice_label'].values
+    fovs = np.unique(fovPerTrial)
+    for fov in fovs:
+        fovBool = fovPerTrial==fov
+        trialSet = trialPaths[fovBool]
+        trialInSetCount = 0
+        for trial in trialSet:
+            ch1Tiffs = glob.glob(trial+'/TSeries*Ch1*.tif')
+            ch2Tiffs = glob.glob(trial+'/TSeries*Ch2*.tif')
+            for cycleIDX in range(len(ch2Tiffs)):
+                print('Cycle', cycleIDX, 'of', len(ch2Tiffs))
+                loadedCh1Tiff = tif.imread(ch1Tiffs[cycleIDX])
+                loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
+                if trialInSetCount == 0:
+                    #for the first trial in a trial set
+                    annTiffDr = Path(expmtPath)/'cellCountingTiffs'
+                    annTiffDr.mkdir(parents=True, exist_ok=True)
+                    annTiffFN = str(annTiffDr / f'cellCounting_T{trialInSetCount}_slice{fov}.tif')
                     if cycleIDX == 0:
-                        registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath, prevTemplate=None)
-                        template = np.nanmean(registeredCycle_ch2)
+                        #first cycle of first trial in set -- everything will be aligned to first cycle of first trial in set, so only do this once
+                        registeredCycle = register_tSeries(loadedCh2Tiff, regParams)
+                        registeredRed = register_tSeries(loadedCh1Tiff, regParams)
+                        mTemplate = np.nanmean(registeredCycle, axis=0)
+                        mRedIM = np.nanmean(registeredRed, axis=0)  
+                        _ = make_annotation_tif(mTemplate, mTemplate, mRedIM, 5, annTiffFN, mTemplate.shape)
+                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', registeredCycle[:])
+                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
                     else:
-                        registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath, prevTemplate=template)
-                else:
-                    registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath)
-                correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>59000, np.nan, registeredCycle_ch2[:])
-                mIM = np.nanmean(correctedRegisteredCycle_ch2, axis=0)    
-                trialSlice = slices[trialIDX]                
-                if trialSlice == -1:
-                        print('passing due to zstack error')
-                        break
-                if expmtNotes['lung_label'].values[0] == 'WGA594': #uses stack to find WGA
-                    wgaZStack = tif.imread(zSeriesPathWGA)
-                    gcampZStack = tif.imread(zSeriesPathGCaMP)
-                    wgaSlice = wgaZStack[trialSlice,:,:]
-                    gcampSlice = gcampZStack[trialSlice,:,:]
-                    resolution = gcampSlice.shape
-                    correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch2.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
-                else: #uses mean trail ch1 to find WGA
-                    cycleTiff_ch1 = tif.imread(trialCycles_ch1[cycleIDX])
-                    registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams, expmtPath)
-                    correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>59000,np.nan, registeredCycle_ch1[:])
-                   
-                    tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
-                    wgaSlice = np.nanmean(correctedRegisteredCycle_ch1, axis=0)
-                    gcampSlice = mIM
-                    resolution = mIM.shape
-                if os.path.exists(expmtPath+'/cellCountingTiffs/'):
-                    annTiffFN = expmtPath+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
-                else:
-                    os.mkdir(expmtPath+'/cellCountingTiffs/')
-                    annTiffFN = expmtPath+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
-                
-                
-                if cycleIDX == 0:
-                    _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 5, annTiffFN, resolution)
-                tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
-        else:
-            print(f'\rTrials Registered!', end='', flush=True)
-        trialCounter+=1
+                        #consecutive cycle of first trial in set (if it exists)
+                        registeredCycle = register_tSeries(loadedCh2Tiff, regParams)
+                        registeredRed = register_tSeries(loadedCh1Tiff, regParams)
+                        mCycle = np.nanmean(registeredCycle, axis=0)
+                        cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
+                        redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
+                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', cycleShifted[:])
+                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', redCycleShifted[:])
+                else: 
+                    # for all cycles of consecutive trials in trial set 
+                    loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
+                    registeredCycle = register_tSeries(loadedCh2Tiff, regParams)
+                    registeredRed = register_tSeries(loadedCh1Tiff, regParams)
+                    mCycle = np.nanmean(registeredCycle, axis=0)
+                    cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
+                    redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
+                    tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', cycleShifted[:])
+                    tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', redCycleShifted[:])
+                trialInSetCount += 1
+
+   
 
 def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
@@ -257,6 +283,10 @@ def register_tSeries(rawData, regParams, expmtPath, prevTemplate = None):
     moco_results = masknmf.RegistrationArray(rawData, pwrigid_strategy, device = device)
 
     return moco_results
+
+
+
+
 
 #Plotting and summary functions
 
@@ -914,4 +944,63 @@ def extract_metaData(expmt):
                 
 
     
-# %%
+# %% TEMP CODE TO REMEMBER WHAT I DID
+## TEMP CODE TO REMEMBER WHAT I DID
+ template=None #by default and to avoid accidental errors
+    for trial in trialPaths:
+        trialIDX = trialCounter-1
+        trialCycles_ch1 = glob.glob(trial+'/TSeries*Ch1*.tif')
+        trialCycles_ch2 = glob.glob(trial+'/TSeries*Ch2*.tif')
+        registeredTrials = glob.glob(trial+'/rT*_C*_ch*.tif')
+        if len(registeredTrials) <1:
+            print(f'Reading Trial {trialCounter} Cycles...')
+            
+            if len(trialCycles_ch1)>1:
+                multiCycleFlag = True
+            
+            for cycleIDX in range(len(trialCycles_ch1)):
+                print('Cycle', cycleIDX, 'of', len(trialCycles_ch1))
+                cycleTiff_ch2 = tif.imread(trialCycles_ch2[cycleIDX])
+                if multiCycleFlag:
+                    if cycleIDX == 0:
+                        registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath, prevTemplate=None)
+                        template = np.nanmean(registeredCycle_ch2)
+                    else:
+                        registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath, prevTemplate=template)
+                else:
+                    registeredCycle_ch2, _ = register_tSeries(cycleTiff_ch2, regParams, expmtPath)
+                correctedRegisteredCycle_ch2 = np.where(registeredCycle_ch2[:]>59000, np.nan, registeredCycle_ch2[:])
+                mIM = np.nanmean(correctedRegisteredCycle_ch2, axis=0)    
+                trialSlice = slices[trialIDX]                
+                if trialSlice == -1:
+                        print('passing due to zstack error')
+                        break
+                if expmtNotes['lung_label'].values[0] == 'WGA594': #uses stack to find WGA
+                    wgaZStack = tif.imread(zSeriesPathWGA)
+                    gcampZStack = tif.imread(zSeriesPathGCaMP)
+                    wgaSlice = wgaZStack[trialSlice,:,:]
+                    gcampSlice = gcampZStack[trialSlice,:,:]
+                    resolution = gcampSlice.shape
+                    correctedRegisteredCycle_ch2 = resize(correctedRegisteredCycle_ch2[:], output_shape=(correctedRegisteredCycle_ch2.shape[0], resolution[0], resolution[1]), preserve_range=True, anti_aliasing=True)
+                else: #uses mean trail ch1 to find WGA
+                    cycleTiff_ch1 = tif.imread(trialCycles_ch1[cycleIDX])
+                    registeredCycle_ch1, _ = register_tSeries(cycleTiff_ch1, regParams, expmtPath)
+                    correctedRegisteredCycle_ch1 = np.where(registeredCycle_ch1[:]>59000,np.nan, registeredCycle_ch1[:])
+                   
+                    tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch1.tif', correctedRegisteredCycle_ch1[:])
+                    wgaSlice = np.nanmean(correctedRegisteredCycle_ch1, axis=0)
+                    gcampSlice = mIM
+                    resolution = mIM.shape
+                if os.path.exists(expmtPath+'/cellCountingTiffs/'):
+                    annTiffFN = expmtPath+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
+                else:
+                    os.mkdir(expmtPath+'/cellCountingTiffs/')
+                    annTiffFN = expmtPath+f'/cellCountingTiffs/cellCounting_T{trialIDX}_slice{trialSlice}.tif'
+                
+                
+                if cycleIDX == 0:
+                    _ = make_annotation_tif(mIM, gcampSlice, wgaSlice, 5, annTiffFN, resolution)
+                tif.imwrite(trial+f'/rT{trialCounter}_C{cycleIDX+1}_ch2.tif', correctedRegisteredCycle_ch2[:])
+        else:
+            print(f'\rTrials Registered!', end='', flush=True)
+        trialCounter+=1

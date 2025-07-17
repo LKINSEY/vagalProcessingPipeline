@@ -11,21 +11,26 @@ if __name__=='__main__':
         ]
     expmtRecords = glob.glob(dataFrom[3])
     regParams = {
-        'maxShifts': (25,25),
+        'maxShifts': [25,25],
         'frames_per_split': 1000, 
-        'num_splits_to_process_rig': 5,
+        # 'num_splits_to_process_rig': 5,
         'niter_rig': 4,
-        'save_movie': False,
-        'pw_rigid': True,
-        'strides': (64, 64),
-        'overlaps': (32,32),
-        'max_deviation_rigid': 25,
-        'frame_corrector_batching': 100
+        # 'save_movie': False,
+        # 'pw_rigid': True,
+        # 'strides': [64, 64], #dont use apparently
+        'overlaps': [32,32],
+        'max_deviation_rigid': [25,25],
+        'frame_corrector_batching': 100,
+        'device': 'cpu',
+        'numn_blocks': [30,30]
     }
 
     for expmt in expmtRecords:
+    
+        metaData = extract_metaData(expmt)
+        metaData['regParams'] = regParams
         
-        register_trials(expmt, regParams)
+        register_2ch_trials(expmt, regParams)
         #insert cellpose command here
         dataDict = extract_roi_traces(expmt)
         if dataDict:
