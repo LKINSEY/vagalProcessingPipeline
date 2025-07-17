@@ -2,31 +2,23 @@
 Processing pipeline that utilizes jnormcorre and cellpose to compress multi photon calcium imaging experiments of the vagal ganglia
 
 
-# Coming Soon:
-- Working on updates to analyze gas-change experiments
-- likely will rework processing pipeline to be cleaner and automatically generate expmtNotes by reading tiff metadata moving forward
-
 # Installation:
 ```
 git clone https://github.com/LKINSEY/vagalProcessingPipeline.git
 
 cd .\path\to\repo
 
-conda create --name dataAnalysis python=3.10
+conda create --name dataAnalysis python=3.11
 
 conda activate dataAnalysis
 
-pip install git+https://github.com/apasarkar/jnormcorre.git
+pip install git+https://github.com/apasarkar/masknmf-toolbox.git@main
 
-python -m pip install cellpose[gui]
-
-pip install openpyxl
-
-pip install alicat
+pip install alicat, pandas
 
 ```
-(may need to download additional dependencies found here https://github.com/MouseLand/cellpose) -- this is also why env should be python=3.10
-- this installs pyqt6 as well
+**IMPORTANT**
+Extracting ROI traces requires you to have cellpose npy files for segmented ROIs for each FOV you are looking at. Cellpose instructions are found here(https://github.com/MouseLand/cellpose), and are outside of the scope of this processing pipeline currently. Plans are being made to implement automated ROI extraction using cellpose, but currently cellpose is not compatable with masknmf in the same environment. **Use Cellpose in a different environment.**
 
 
 # How To:
