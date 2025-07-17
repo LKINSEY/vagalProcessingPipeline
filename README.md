@@ -14,7 +14,7 @@ conda activate dataAnalysis
 
 pip install git+https://github.com/apasarkar/masknmf-toolbox.git@main
 
-pip install alicat, pandas
+pip install alicat, pandas, openpyxl
 
 ```
 **IMPORTANT**
