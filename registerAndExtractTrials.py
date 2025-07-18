@@ -13,16 +13,12 @@ if __name__=='__main__':
     regParams = {
         'maxShifts': [25,25],
         'frames_per_split': 1000, 
-        # 'num_splits_to_process_rig': 5,
         'niter_rig': 4,
-        # 'save_movie': False,
-        # 'pw_rigid': True,
-        # 'strides': [64, 64], #dont use apparently
-        'overlaps': [32,32],
+        'overlaps': [5,5],
         'max_deviation_rigid': [25,25],
         'frame_corrector_batching': 100,
         'device': 'cpu',
-        'numn_blocks': [30,30]
+        'num_blocks': [3,3]
     }
 
     for expmt in expmtRecords:
