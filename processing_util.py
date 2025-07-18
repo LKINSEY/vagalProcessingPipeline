@@ -227,7 +227,6 @@ def register_2ch_trials(expmtPath, regParams):
                 trialInSetCount += 1
             else:
                 print(f'Trial {trialCount} Already Registered')
-                
             trialCount+=1
 
 
