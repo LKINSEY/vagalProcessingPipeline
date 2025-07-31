@@ -338,6 +338,7 @@ def sync_traces(expmtPath, dataDict):
                 colabeledROIs = colabeledROIs[1:]
             rois = np.unique(np.concat([colabeledROIs, gCaMPOnly]))
         except:
+            print('error detected')
             continue
         
         #iterate through registered cycle traces
@@ -432,13 +433,14 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
 
 
     else: #assuming all other types of trials are mechanical stim trials
-        if notes['stim_frame'].values[0]=='voltage':
+        if notes['stim_frame'].values[trial]=='voltage':
             stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
             sync = True
         else:
             stimFrame = notes['stim_frame'][trial]
             sync = False
         #TODO: will need to generalize this for any type of 2p experiment...
+        
         if 'mech_galvo' in expmt:
             vLine = 20
             stepping = 5
@@ -765,7 +767,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
 
             #currently assuming all else is mechanical stim trials
             else: 
-                if notes['stim_frame'].values[0]=='voltage':
+                if notes['stim_frame'].values[trial]=='voltage':
                     stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
                 else:
                     stimFrame = notes['stim_frame'][trial]
