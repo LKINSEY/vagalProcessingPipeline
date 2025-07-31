@@ -382,7 +382,7 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
     rawF = traces[trial].T
     xlabel = notes['frame_rate'][trial]
 
-    if conditionStr == 'baseline':
+    if 'baseline' in conditionStr:
         
         f0 = np.nanmean(rawF[:40])
         dFF = (rawF - f0)/f0
@@ -597,7 +597,7 @@ def summerize_experiment(expmtPath, dataDict):
             gcampCenters = [center_of_mass(masks[2,:,:]==roi) for roi in gcampROIs]
             colabeledCenters = [center_of_mass(masks[1,:,:]==roi) for roi in colabeledROIs]
             firstTrialInSet = trialIndices[slicePerTrial==trialSet][0]
-            maskIM = dataDict[f'T{firstTrialInSet+1}_masksIM']
+            maskIM = dataDict[f'T{firstTrialInSet}_masksIM']
             if maskIM.shape[0] == 3:
                 maskIM = np.permute_dims(maskIM, (1,2,0))
             outlinesIM = dataDict[f'T{firstTrialInSet}_outlinesIM']
