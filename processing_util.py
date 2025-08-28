@@ -2,15 +2,12 @@
 import tifffile as tif
 import numpy as np
 import pandas as pd
-import os, glob, pickle, cv2
+import os, glob, pickle, cv2, torch
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Patch
 from pathlib import Path
 import xml.etree.ElementTree as ET
-# import jnormcorre
-# import jnormcorre.motion_correction
-# import jnormcorre.utils.registrationarrays as registrationarrays
 import masknmf
 from skimage.transform import resize
 from scipy.ndimage import center_of_mass
@@ -258,16 +255,18 @@ def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resoluti
         matrix, mask = cv2.estimateAffinePartial2D(ptsA,ptsB)
         alignedgCaMPStack = cv2.warpAffine(gcampSlice, matrix, (mIM.shape[1], mIM.shape[0]))
         alignedgWGAStack = cv2.warpAffine(wgaSlice, matrix, (mIM.shape[1], mIM.shape[0]))
+        annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
     else:
         #case 2 template matching
         print('Case 2 Alignment ... have not encountered this yet actually')
-        return
+        annTiff = np.stack((wgaSlice, gcampSlice, mIM), axis=0)
+        # return
         
-    annTiff = np.stack((alignedgWGAStack, alignedgCaMPStack, mIM), axis=0)
+    
     tif.imwrite(annTifFN,annTiff)
     return annTiff
 
-def register_tSeries(rawData, regParams):
+def register_tSeries(rawData, regParams, template = None):
     max_shifts = regParams['maxShifts']
     frames_per_split = regParams['frames_per_split']
     device = regParams['device']
@@ -277,18 +276,28 @@ def register_tSeries(rawData, regParams):
     num_blocks = regParams['num_blocks']
 
     #code copied from repo's demo
-    rigid_strategy = masknmf.RigidMotionCorrection(max_shifts = max_shifts)
-    pwrigid_strategy = masknmf.PiecewiseRigidMotionCorrection(num_blocks = num_blocks,
-                                                            overlaps = overlaps,
-                                                            max_rigid_shifts = max_shifts,
-                                                            max_deviation_rigid = max_deviation_rigid)
-    pwrigid_strategy = masknmf.motion_correction.compute_template(rawData,
-                                                                rigid_strategy,
-                                                                num_iterations_piecewise_rigid = niter_rig,
-                                                                pwrigid_strategy = pwrigid_strategy,
-                                                                device = device,
-                                                                batch_size = frames_per_split)
-    moco_results = masknmf.RegistrationArray(rawData, pwrigid_strategy, device = device)
+    if template is None:
+        rigid_strategy = masknmf.RigidMotionCorrection(max_shifts = max_shifts)
+        pwrigid_strategy = masknmf.PiecewiseRigidMotionCorrection(num_blocks = num_blocks,
+                                                                overlaps = overlaps,
+                                                                max_rigid_shifts = max_shifts,
+                                                                max_deviation_rigid = max_deviation_rigid)
+        pwrigid_strategy = masknmf.motion_correction.compute_template(rawData,
+                                                                    rigid_strategy,
+                                                                    num_iterations_piecewise_rigid = niter_rig,
+                                                                    pwrigid_strategy = pwrigid_strategy,
+                                                                    device = device,
+                                                                    batch_size = frames_per_split)
+        moco_results = masknmf.RegistrationArray(rawData, pwrigid_strategy, device = device)
+    else:
+        rigid_strategy = masknmf.RigidMotionCorrection(max_shifts = max_shifts)
+        pwrigid_strategy = masknmf.PiecewiseRigidMotionCorrection(num_blocks = num_blocks,
+                                                                overlaps = overlaps,
+                                                                max_rigid_shifts = max_shifts,
+                                                                max_deviation_rigid = max_deviation_rigid,
+                                                                template=torch.tensor(template))
+
+        moco_results = masknmf.RegistrationArray(rawData, pwrigid_strategy, device = device)
 
     return moco_results[:]
 
@@ -352,7 +361,9 @@ def sync_traces(expmtPath, dataDict):
                 ventilatorSamplingRate = 10000 #will read xml in future to retrieve this, but this usually is pretty consistent
                 downSampleVent = round(ventilatorSamplingRate/fps) #so for a 29.94 Hz recording this will sample vent trace every 334th frame
                 voltageSignals = glob.glob(trialPath+'/TSeries*VoltageRecording*.csv')
-                if expmtNotes['stim_type'].values[trial]=='baseline':
+                if 'baseline' in expmtNotes['stim_type'].values[trial]:
+                    trialTraceArray.append(rawROIs)
+                elif 'gas' in expmtNotes['stim_type'].values[trial]:
                     trialTraceArray.append(rawROIs)
                 else:
                     ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent]
@@ -402,7 +413,11 @@ def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
         #gas will plot mean of each cycle
         # np.where()
         # print(np.where(np.diff(((np.isnan(rawF[1,:]).astype(int))*-1)+1)==1)[0][0])
-        jump = np.where(np.diff(((np.isnan(rawF[1,:]).astype(int))*-1)+1)==1)[0][0]
+        #
+        #need to find a way to extract frames per cycle to better get this value
+        #for now when this bugs out just hardcode this
+        # jump = np.where(np.diff(((np.isnan(rawF[1,:]).astype(int))*-1)+1)==1)[0][0] #only works for 120 frame cycles
+        jump = 120
         cycle = 0
         cycleAvgs = []
         for idx in range(jump, rawF.shape[1], jump):
@@ -695,11 +710,11 @@ def find_stim_frame(ventilatorTrace, condition):
     edges = ventilatorTrace - np.roll(ventilatorTrace, -1)
     risingIDX = np.where(edges<0)[0]
     fallingIDX = np.where(edges>0)[0]
-    if condition == '5e':
+    if '5e' in condition:
         exspLengths = fallingIDX - np.roll(fallingIDX,1)
         longestExsp = np.unique(exspLengths)[-1]
         stimFrame = fallingIDX[np.where(exspLengths == longestExsp)[0]-1]
-    elif condition=='baseline':
+    elif 'baseline' in condition:
         stimFrame = None
         return
     else:
@@ -771,7 +786,6 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
                     stimFrame = find_stim_frame(traces[trial][:,-1], conditionStr)
                 else:
                     stimFrame = notes['stim_frame'][trial]
-                
                 #currently logic is based off manually curated metadata
                 if fps <= 4:
                     beggining = 20 if stimFrame>= 21 else 0
@@ -813,7 +827,7 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
         conditionStr = conditions[0]
         trial = trialIndices[0]
         rawF = traces[trial][:,roiChoice].T
-        if conditionStr == 'baseline':
+        if 'baseline' in conditionStr:
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
                 dFF = (rawF - f0)/f0
                 upperLimit = max(uL, max(dFF))
