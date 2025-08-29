@@ -234,9 +234,6 @@ def register_2ch_trials(expmtPath, regParams):
                 print(f'Trial {trialCount} Already Registered')
             trialCount+=1
 
-
-   
-
 def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
     
     low, high = np.percentile(gcampSlice, [0.4, 99.6])
@@ -575,7 +572,6 @@ def response_distribution(conditionStr, trial, traces, notes):
     rois = traces[f'T{trial}_roiOrder']
     plt.xticks(rois)
     plt.xlabel('ROI ID')
-
 
 def summerize_experiment(expmtPath, dataDict):
     '''
