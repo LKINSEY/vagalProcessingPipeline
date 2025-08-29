@@ -70,12 +70,13 @@ def extract_roi_traces(expmtPath):
                 outlineIM = np.zeros((3,masks.shape[0], masks.shape[1]))
                 outlineIM[0,:,:] = outlines>0
                 outlineIM[2,:,:] = outlines>0
-                if lungLabel == 'WGA594':
-                    annTiff = tif.imread(glob.glob(expmtPath+f'/cellCountingTiffs/*slice{segmentationUsed}.tif')[0])
-                    rIM = annTiff[0,:,:]
-                else: #if trial_ch1 is the red image
-                    rmIM = tif.imread(registeredTiffs_ch1[0]) #only the first cycle will be used since brightest
-                    rmIM = np.nanmean(rmIM, axis=0)
+                #no longer using WGA594 - uncomment if processing older files
+                # if lungLabel == 'WGA594':
+                #     annTiff = tif.imread(glob.glob(expmtPath+f'/cellCountingTiffs/*slice{segmentationUsed}.tif')[0])
+                #     rIM = annTiff[0,:,:]
+                # else: #if trial_ch1 is the red image
+                #     rmIM = tif.imread(registeredTiffs_ch1[0]) #only the first cycle will be used since brightest
+                #     rmIM = np.nanmean(rmIM, axis=0)
                 outlineIM[1,:,:] = np.power(   rmIM/np.max(rmIM-20) , .52)
 
                 #some experiments are chopped up into cycles, others are not, this accounts for it
@@ -83,18 +84,22 @@ def extract_roi_traces(expmtPath):
                 cycleFeatures = {}
                 for cycleIDX in range(len(registeredTiffs_ch2)):
                     greenCycle = tif.imread(registeredTiffs_ch2[cycleIDX])
+                    redCycle = tif.imread(registeredTiffs_ch1[cycleIDX])
 
                     if greenCycle.shape[1] != resolution[0]: #fit resolution of stack so rois match resolution of tif
                         print('Resizing cycle')
                         greenCycle = resize(greenCycle, (greenCycle.shape[0], resolution[0], resolution[1])) 
+                        redCycle = resize(greenCycle, (greenCycle.shape[0], resolution[0], resolution[1])) 
 
                     if cycleIDX == 0: #finish making the roi viewer
                         mIM = np.nanmean(greenCycle, axis=0)
+                        rmIM = np.nanmean(redCycle, axis=0)
                         masksIM[0,:,:] = np.power(   mIM/np.max(mIM-20) , .72)
                         masksIM[2,:,:] = np.power(   mIM/np.max(mIM-20) , .72)
 
                     #extract and save traces of every gCaMP+ ROI
                     cycleTrace = []
+                    cycleTrace_red = []
                     roiFeatures = {}
                     roiFeatures['gCaMP_only_rois'] = gCaMPOnly
                     roiFeatures['colabeled_rois'] = colabeledROIs
@@ -112,10 +117,15 @@ def extract_roi_traces(expmtPath):
                             roiFeatures[f'roi{roi}_windowCh1'] = rroiWindow
                             roiFeatures[f'roi{roi}_windowCh2'] = groiWindow
                         extractedROI = greenCycle*(masks==roi)
+                        extractedROI_red = redCycle*(mask==roi)
                         roiNAN = np.where(extractedROI==0, np.nan, extractedROI)
+                        roiNaN_red = np.where(extractedROI_red==0, np.nan, extractedROI)
+                        roiTrace_red = np.nanmean(roiNaN_red, axis=(1,2))
                         roiTrace = np.nanmean(roiNAN, axis=(1,2))
                         cycleTrace.append(roiTrace)
+                        cycleTrace_red.append(roiTrace_red)
                     cycleFeatures[f'cycle{cycleIDX}_traces'] = cycleTrace #raw unmodified traces
+                    cycleFeatures[f'cycle{cycleIDX}_traces_red'] = cycleTrace_red
                     cycleFeatures[f'T{trialCounter}_roiFeatures'] = roiFeatures
                 dataDict[trialCounter] = cycleFeatures
                 dataDict[f'T{trialCounter}_masksIM'] = masksIM
@@ -195,8 +205,8 @@ def register_2ch_trials(expmtPath, regParams):
                         annTiffFN = str(annTiffDr / f'cellCounting_T{trialCount-1}_slice{fov}.tif')
                         if cycleIDX == 0:
                             #first cycle of first trial in set -- everything will be aligned to first cycle of first trial in set, so only do this once
-                            registeredCycle = register_tSeries(loadedCh2Tiff, regParams)
-                            registeredRed = register_tSeries(loadedCh1Tiff, regParams)
+                            registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = None)
+                            registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = None)
                             mTemplate = np.nanmean(registeredCycle, axis=0)
                             mRedIM = np.nanmean(registeredRed, axis=0)  
                             _ = make_annotation_tif(mTemplate, mTemplate, mRedIM, 5, annTiffFN, mTemplate.shape)
@@ -204,8 +214,8 @@ def register_2ch_trials(expmtPath, regParams):
                             tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
                         else:
                             #consecutive cycle of first trial in set (if it exists)
-                            registeredCycle = register_tSeries(loadedCh2Tiff, regParams)
-                            registeredRed = register_tSeries(loadedCh1Tiff, regParams)
+                            registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                            registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
                             mCycle = np.nanmean(registeredCycle, axis=0)
                             cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
                             redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
@@ -214,13 +224,11 @@ def register_2ch_trials(expmtPath, regParams):
                     else: 
                         # for all cycles of consecutive trials in trial set 
                         loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
-                        registeredCycle = register_tSeries(loadedCh2Tiff, regParams)
-                        registeredRed = register_tSeries(loadedCh1Tiff, regParams)
+                        registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                        registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
                         mCycle = np.nanmean(registeredCycle, axis=0)
-                        cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
-                        redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
-                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', cycleShifted[:])
-                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', redCycleShifted[:])
+                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', registeredCycle[:])
+                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
                 trialInSetCount += 1
             else:
                 print(f'Trial {trialCount} Already Registered')
