@@ -77,7 +77,7 @@ def extract_roi_traces(expmtPath):
                 # else: #if trial_ch1 is the red image
                 #     rmIM = tif.imread(registeredTiffs_ch1[0]) #only the first cycle will be used since brightest
                 #     rmIM = np.nanmean(rmIM, axis=0)
-                outlineIM[1,:,:] = np.power(   rmIM/np.max(rmIM-20) , .52)
+                
 
                 #some experiments are chopped up into cycles, others are not, this accounts for it
                 rois = np.unique(masks)[1:] 
@@ -89,13 +89,14 @@ def extract_roi_traces(expmtPath):
                     if greenCycle.shape[1] != resolution[0]: #fit resolution of stack so rois match resolution of tif
                         print('Resizing cycle')
                         greenCycle = resize(greenCycle, (greenCycle.shape[0], resolution[0], resolution[1])) 
-                        redCycle = resize(greenCycle, (greenCycle.shape[0], resolution[0], resolution[1])) 
+                        redCycle = resize(redCycle, (redCycle.shape[0], resolution[0], resolution[1])) 
 
                     if cycleIDX == 0: #finish making the roi viewer
                         mIM = np.nanmean(greenCycle, axis=0)
                         rmIM = np.nanmean(redCycle, axis=0)
                         masksIM[0,:,:] = np.power(   mIM/np.max(mIM-20) , .72)
                         masksIM[2,:,:] = np.power(   mIM/np.max(mIM-20) , .72)
+                        outlineIM[1,:,:] = np.power(   rmIM/np.max(rmIM-20) , .52)
 
                     #extract and save traces of every gCaMP+ ROI
                     cycleTrace = []
@@ -117,10 +118,10 @@ def extract_roi_traces(expmtPath):
                             roiFeatures[f'roi{roi}_windowCh1'] = rroiWindow
                             roiFeatures[f'roi{roi}_windowCh2'] = groiWindow
                         extractedROI = greenCycle*(masks==roi)
-                        extractedROI_red = redCycle*(mask==roi)
+                        extractedROI_red = redCycle*(masks==roi)
                         roiNAN = np.where(extractedROI==0, np.nan, extractedROI)
-                        roiNaN_red = np.where(extractedROI_red==0, np.nan, extractedROI)
-                        roiTrace_red = np.nanmean(roiNaN_red, axis=(1,2))
+                        # roiNaN_red = np.where(extractedROI_red==0, np.nan, extractedROI_red)
+                        # roiTrace_red = np.nanmean(roiNaN_red, axis=(1,2))
                         roiTrace = np.nanmean(roiNAN, axis=(1,2))
                         cycleTrace.append(roiTrace)
                         cycleTrace_red.append(roiTrace_red)
@@ -357,9 +358,11 @@ def sync_traces(expmtPath, dataDict):
         
         #iterate through registered cycle traces
         trialTraceArray = []
+        trialTraceArray_red = []
         for cycleIDX in range(nCycles):
             intercycleinterval = 25
             rawROIs = np.array(dataDict[trial][f'cycle{cycleIDX}_traces'])
+            # rawROIs_red = np.array(dataDict[trial][f'cycle{cycleIDX}_traces_red'])
             #concatenating ventialtor is synced to microscope we concatenat trials with vent signal as last trace
             if stimFrame == 'voltage':
                 fps = fpsPerTrial[trial]
@@ -368,29 +371,40 @@ def sync_traces(expmtPath, dataDict):
                 voltageSignals = glob.glob(trialPath+'/TSeries*VoltageRecording*.csv')
                 if 'baseline' in expmtNotes['stim_type'].values[trial]:
                     trialTraceArray.append(rawROIs)
+                    # trialTraceArray_red.append(rawROIs_red)
                 elif 'gas' in expmtNotes['stim_type'].values[trial]:
-                    trialTraceArray.append(rawROIs)
+                    trialTraceArray.append(np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)) #pad to show time seperation 
+                    # trialTraceArray_red.append(np.pad(rawROIs_red, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan))
                 else:
                     ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent]
                     if ventilatorTrace.shape[0] == rawROIs.shape[1]:
                         rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
+                        # rawTracesPadded_red = np.pad(rawROIs_red, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
                         voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)
                         addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
+                        # addToTraces_red = np.vstack([rawTracesPadded_red, voltageTracePadded])
                         trialTraceArray.append(addToTraces)
+                        # trialTraceArray_red.append(addToTraces_red)
                     else:
                         try:
                             rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
+                            # rawTracesPadded_red = np.pad(rawROIs_red, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
                             voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
                             print(f'\nTrial {trial+1} Sampling is off by 1\n')
                             addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
-                            trialTraceArray.append(addToTraces)                            
+                            # addToTraces_red = np.vstack([rawTracesPadded_red, voltageTracePadded])
+                            trialTraceArray.append(addToTraces)    
+                            # trialTraceArray_red.append(addToTraces_red)                     
                         except ValueError:
                             print('\n error with cycle - ommitting')
 
             else: #if manually recorded stim frame (it is not split into trials if it is this case)
                 trialTraceArray.append(rawROIs)
+                # trialTraceArray_red.append(rawROIs_red)
         trialTrace = np.hstack(trialTraceArray).T
+        # trialTrace_red = np.hstack(trialTraceArray_red).T
         traceDict[trial] = trialTrace
+        # traceDict[f'{trial}_iso'] = trialTrace_red
         traceDict[f'T{trial}_roiOrder'] = rois
     print(f'\r{expmtPath} synced!\n', end='', flush=True)
     return traceDict 
@@ -760,16 +774,24 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
             roi = trialROIs[roiChoice]
             fig.suptitle(f'ROI {roi}')
             rawF = traces[trial][:,roiChoice].T
+            # isoBestic = traces[f'{trial}_iso'][:,roiChoice].T
             if roi in gcampROIs:
                 plottingColor = '#8A2BE2'
             else:
                 plottingColor = '#32CD32'
+            # withoutISOCorrection = "#747070"
             if 'baseline' in conditionStr:
+
+
                 f0 = np.nanmean(rawF[:round(len(rawF)/4)])
+                # f0_iso = np.nanmean(rawF[:round(len(isoBestic)/4)])
                 dFF = (rawF - f0)/f0
+                # dFF_iso = (isoBestic - f0_iso)/f0
+                # isoCorrection = 
                 upperLimit = max(uL, max(dFF))
                 lowerLimit = min(lL, min(dFF))
-                ax[conditionIDX].plot(dFF, color=plottingColor)
+                ax[conditionIDX].plot(dFF, color=plottingColor, label='Without Iso Correction') #keep for now... 
+                ax[conditionIDX].plot(dFF, color=plottingColor, label='Without Iso Correction')
                 ax[conditionIDX].axhline(0, color='black', alpha=0.5)
                 ax[conditionIDX].set_ylabel(f'{conditionStr}\n({fps} fps)', fontsize=8)
                 ax[conditionIDX].set_ylim([lowerLimit, upperLimit])
@@ -852,121 +874,134 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
 
     return fig
 
-def extract_metaData(expmt):
-    trials = glob.glob(expmt+'/TSeries*/')
+def extract_metadata(expmt):
+    trials = glob(expmt+'/TSeries*/')
+    zstackXML = glob(expmt+'/ZSeries*/*001.xml')[0]
     metaData = {}
+    #zstack first
+    try:
+        md= ET.parse(zstackXML)
+    except FileNotFoundError:
+        print(f'No Meta Data For ZStack')
+        # return
+    rootStack = md.getroot()
+    stackMeta = {}
+    for child in rootStack:
+        if len(child.attrib) == 0: #its our PVShard
+            stateShardMeta = {}
+            for state in child:
+                if len(state.keys()) == 2:
+                    stateShardMeta[state.get('key')] = state.get('value')
+                else:
+                    indexMeta = {}
+                    for indexedValue in state:
+                        if len(indexedValue)>0:
+                            for subindexedValue in indexedValue:
+                                if 'description' in subindexedValue.keys():
+                                    indexMeta[subindexedValue.get('description')] = subindexedValue.get('value')
+                                else:
+                                    indexMeta[indexedValue.get('index')] = subindexedValue.get('value')
+
+                        else:
+                            if 'description' in indexedValue.keys():
+                                indexMeta[indexedValue.get('description')] = indexedValue.get('value')
+                            else:
+                                indexMeta[indexedValue.get('index')] = indexedValue.get('value')
+                    stateShardMeta[state.get('key')] = indexMeta
+        if child.attrib.get('type') ==  'ZSeries':
+            stackMeta['start_time'] = child.get('time')
+            nSlices = len(child)-1 #first is just a shard
+            stackMeta['nSlices'] = nSlices
+            sliceRelTimes = {}
+            sliceAbsTimes = {}
+            frameMeta = {}
+            sliceIDX = 0
+            for frame in child[1:]:
+                sliceRelTimes[sliceIDX] = frame.attrib.get('relativeTime')
+                sliceAbsTimes[sliceIDX] = frame.attrib.get('absoluteTime')
+                positionMeta = {}
+                for shard in frame:
+                    if len(shard)>0:
+                        for axis in shard[0]:
+                            positionMeta[axis.get('index')] = axis[0].get('value')
+                frameMeta[sliceIDX] = positionMeta
+                sliceIDX+=1
+            stackMeta['scanTimes_rel'] = sliceRelTimes
+            stackMeta['scanTimes_abs'] = sliceAbsTimes
+            stackMeta['frameMetas'] = frameMeta
+    ZSeriesMeta = {}
+    ZSeriesMeta['Frames'] = stackMeta
+    ZSeriesMeta['stateShard'] = stateShardMeta
+    metaData['ZSeris'] = ZSeriesMeta
+
+
+
+    #TSeries next
+    tSeriesMeta = {}
     for tidx, tPath in enumerate(trials): #roughly 2-3s a trial for nFrames = 120
         metaDataFN = os.path.join(
             tPath, 
             [FN for FN in os.listdir(tPath) if 'VoltageRecording' not in FN and '.xml' in FN][0]
             )
-        
         try:
             md= ET.parse(metaDataFN)
         except FileNotFoundError:
             print(f'No Meta Data For Trial {tidx}')
-            return
-        
+            # return
         root = md.getroot()
         trialMeta = {}
-        trialMeta['datetime'] = root.attrib.get('date')
-        #Extracting PVStateShard for trial, state shard is nested in root[1] always
-        for child in root[1]:
-            if child.attrib.get('value'):
-                trialMeta[child.attrib.get('key')] = child.attrib.get('value')
-            else:
-                if child.attrib.get('key') == 'laserPower':
-                    laserDict = {}
-                    for idx in range(len(child)):
-                        laserDict[child[idx].attrib.get('description')] = child[idx].attrib.get('value')
-                    trialMeta[child.attrib.get('key')] = laserDict
-                elif child.attrib.get('key') == 'laserWavelength':
-                    trialMeta[child.attrib.get('key')] = child[0].attrib.get('value')
-                elif child.attrib.get('key') == 'micronsPerPixel':
-                    micronPerPixelDict = {}
-                    for idx in range(len(child)):
-                        micronPerPixelDict[child[idx].attrib.get('index')] = child[idx].attrib.get('value')
-                    trialMeta[child.attrib.get('key')] = micronPerPixelDict
-                elif child.attrib.get('key') == 'pmtGain':
-                    pmtGainDict = {}
-                    for idx in range(len(child)):
-                        pmtGainDict[child[idx].attrib.get('description')] = child[idx].attrib.get('value')
-                    trialMeta[child.attrib.get('key')] = pmtGainDict
-                elif child.attrib.get('key') == 'positionCurrent':
-                    motorPosDict = {}
-                    for idx in range(len(child)):
-                        motorPosDict[child[idx].attrib.get('index')] = child[idx][0].attrib.get('value')
-                    trialMeta['motorPos'] = motorPosDict
+        cycleCount = 0
+        for child in root:
+            if len(child.attrib) == 0: #its our PVShard
+                stateShardMeta = {}
+                for state in child:
+                    if len(state.keys()) == 2:
+                        stateShardMeta[state.get('key')] = state.get('value')
+                    else:
+                        indexMeta = {}
+                        for indexedValue in state:
+                            if len(indexedValue)>0:
+                                for subindexedValue in indexedValue:
+                                    if 'description' in subindexedValue.keys():
+                                        indexMeta[subindexedValue.get('description')] = subindexedValue.get('value')
+                                    else:
+                                        indexMeta[indexedValue.get('index')] = subindexedValue.get('value')
 
-        #Extracting MetaData From Each Frame of Tiff, frame shards always nested in root[2]
-        trialMeta['nFrames'] = len(root[2]) - 2 #subtracting out <PVStateShard /> and <VoltageRecording>
-        trialMeta['framePeriod'] = root[2][3][3][0].attrib.get('value')
-        trialMeta['fps'] = 1/float(root[2][3][3][0].attrib.get('value'))
-        relTime = []
-        absTime = []
-        for child in root[2]:
-            if child.tag == 'Frame':
-                relTime.append(child.attrib.get('relativeTime'))
-                absTime.append(child.attrib.get('absoluteTime'))
-        trialMeta['relTime'] = np.array(relTime)
-        trialMeta['absTime'] = np.array(absTime)
-        metaData[tidx] = trialMeta
+                            else:
+                                if 'description' in indexedValue.keys():
+                                    indexMeta[indexedValue.get('description')] = indexedValue.get('value')
+                                else:
+                                    indexMeta[indexedValue.get('index')] = indexedValue.get('value')
+                        stateShardMeta[state.get('key')] = indexMeta
+                trialMeta['stateShard'] = stateShardMeta
+            #for future reference we may need to consider xyGrid?
 
-        #Clearing just to be confident it is cleared
-        del root
-        del child
+            elif child.get('type') == 'TSeries Timed Element':
+                trialMeta[f'cycle_{cycleCount}_time'] = child.get('time')
+                frameMeta = {}
 
-        #extract zStack/ZSeries metadata 
-        zstackMeta = {}
-        stackPath = glob.glob(expmt+'/ZSeries*')[0]
-        metaDataFN = os.path.join(
-            stackPath, 
-            [FN for FN in os.listdir(stackPath) if 'VoltageRecording' not in FN and '.xml' in FN][0]
-            )
-        
-        try:
-            md= ET.parse(metaDataFN)
-        except FileNotFoundError:
-            print(f'Error Extracting ZStack Metadata')
-            metaData['zstack'] = {}
-            return metaData
-        root = md.getroot()
-        
-        #Extracting PVStateShard for ZSeries, state shard is nested in root[1] always
-        for child in root[1]:
-            if child.attrib.get('value'):
-                trialMeta[child.attrib.get('key')] = child.attrib.get('value')
-            else:
-                if child.attrib.get('key') == 'laserPower':
-                    laserDict = {}
-                    for idx in range(len(child)):
-                        laserDict[child[idx].attrib.get('description')] = child[idx].attrib.get('value')
-                    trialMeta[child.attrib.get('key')] = laserDict
-                elif child.attrib.get('key') == 'laserWavelength':
-                    trialMeta[child.attrib.get('key')] = child[0].attrib.get('value')
-                elif child.attrib.get('key') == 'micronsPerPixel':
-                    micronPerPixelDict = {}
-                    for idx in range(len(child)):
-                        micronPerPixelDict[child[idx].attrib.get('index')] = child[idx].attrib.get('value')
-                    trialMeta[child.attrib.get('key')] = micronPerPixelDict
-                elif child.attrib.get('key') == 'pmtGain':
-                    pmtGainDict = {}
-                    for idx in range(len(child)):
-                        pmtGainDict[child[idx].attrib.get('description')] = child[idx].attrib.get('value')
-                    trialMeta[child.attrib.get('key')] = pmtGainDict
+                #subtracting the <PVShard/> and <VoltageRecording> children if voltage is there otherwise just <PVShard/> child
+                if 'VoltageRecording' in child[1].get('configurationFile'):
+                    frameTime_rel = np.zeros((len(child)-2,)) 
+                    frameTime_abs = np.zeros((len(child)-2,))
+                    for fIDX, frame in enumerate(child[2:]):
+                        frameTime_rel[fIDX] = frame.get('relativeTime')
+                        frameTime_abs[fIDX] = frame.get('absoluteTime')
+                else:
+                    frameTime_rel = np.zeros((len(child)-1,)) 
+                    frameTime_abs = np.zeros((len(child)-1,))
+                    for fIDX, frame in enumerate(child[1:]):
+                        frameTime_rel[fIDX] = frame.get('relativeTime')
+                        frameTime_abs[fIDX] = frame.get('absoluteTime')
+                #take framerate from last frame
+                frameMeta['fs'] = frame[3][0].get('value') #the only hardcoded child in this entire thing... Im just lazy...
+                frameMeta['frameTime_rel'] = frameTime_rel
+                frameMeta['frameTime_abs'] = frameTime_abs
+                trialMeta[f'cycle_{cycleCount}_Framemeta'] = frameMeta
+                cycleCount+=1
 
-        #Extracting motor positions of each slice, nested in root[2] always
-        zstackMeta['nSlices'] = len(root[2])-1 #subtracting the first tage <PVShard />
-        
-        sliceNum = 0
-        for child in root[2]:
-            if child.tag =='Frame':
-                sliceMotorPos = {}
-                for idx in range(len(child[3][0])):
-                    sliceMotorPos[child[3][0][idx].attrib.get('index')] = child[3][0][idx][0].attrib.get('value')
-                zstackMeta[sliceNum] = sliceMotorPos
-            sliceNum+=1
+        tSeriesMeta[tidx] = trialMeta
 
-        metaData['zstack'] = zstackMeta
+    metaData['TSeries'] = tSeriesMeta
     return metaData
                 
