@@ -15,9 +15,10 @@ conda activate dataAnalysis
 
 pip install git+https://github.com/apasarkar/masknmf-toolbox.git@main
 
-pip install git+https://github.com/JimHokanson/labchart_server_python.git
-
 pip install alicat, pandas, openpyxl, opencv-python
+
+ git clone https://github.com/JimHokanson/labchart_server_python.git
+ update line __ in processing_util.py to add the path where you cloned this repo to allow its use
 
 ```
 **IMPORTANT**
