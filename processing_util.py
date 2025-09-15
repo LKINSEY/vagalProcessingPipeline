@@ -932,7 +932,7 @@ def extract_metadata(expmt):
     ZSeriesMeta = {}
     ZSeriesMeta['Frames'] = stackMeta
     ZSeriesMeta['stateShard'] = stateShardMeta
-    metaData['ZSeris'] = ZSeriesMeta
+    metaData['ZSeries'] = ZSeriesMeta
 
 
 
