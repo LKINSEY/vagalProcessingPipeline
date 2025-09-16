@@ -1005,3 +1005,86 @@ def extract_metadata(expmt):
     metaData['TSeries'] = tSeriesMeta
     return metaData
                 
+def trialize_physiology(physDict, metaDataDict):
+    trig = physDict['Trial_Trigger_raw']
+    fs_physio = float(physDict['Trial_Trigger_fs'])
+    highs = np.where(trig>2, 1, 0)
+    edges = (np.diff(highs)>=1).astype(int)
+    risingEdges = np.where(edges)[0]
+    edgeDistances = np.diff(risingEdges)
+
+    relT = np.array(list(metaDataDict['ZSeries']['Frames']['scanTimes_rel'].values()), dtype=np.float64)
+    deltaT = np.diff(relT)
+    deltaTicks_expected = (deltaT*fs_physio).astype(int) #fs of 
+    nSlices = len(deltaTicks_expected)
+
+    zStackStart = 0
+    errs = []
+    for i in range(5): #highly improbable to have >5 scans before a zstack in a given physiological recording
+        shiftedEdges = np.roll(edgeDistances, shift = -zStackStart)
+        firstNEdges = shiftedEdges[:nSlices]
+        errs.append(np.sum(abs(firstNEdges - deltaTicks_expected)))
+        zStackStart+= 1
+
+    startingEdge = np.argmin(errs)
+    startingTick = risingEdges[startingEdge]
+
+    highsAdjusted = highs[startingTick:]
+
+    # ticksSubtracted = risingEdges - startingTick
+    # scanTicksAfterzStack = ticksSubtracted[startingEdge:] #in ticks recorded at fs_physio rate
+
+    startTime = metaDataDict['ZSeries']['Frames']['start_time'] #our t=0
+    sT = datetime.strptime(startTime[:15], "%H:%M:%S.%f")
+    secondStart = sT.hour*3600 + sT.minute*60 + sT.second + sT.microsecond/1e6
+    tickStart = int(secondStart*fs_physio)
+
+    trialTicksFromStart = {}
+    lastTick = {}
+    for tIDX in metaDataDict['TSeries'].keys():
+        trialDict = metaDataDict['TSeries'][tIDX]
+        cycleStartTicks = np.zeros((metaDataDict['TSeries'][tIDX]['nCycles'],))
+        cycleEndTicks = np.zeros((metaDataDict['TSeries'][tIDX]['nCycles'],))
+        for cIDX in range(metaDataDict['TSeries'][tIDX]['nCycles']):
+
+            cycleStart = metaDataDict['TSeries'][tIDX][f'cycle_{cIDX}_time']
+            csT = datetime.strptime(cycleStart[:15], "%H:%M:%S.%f")
+            cycleSecondStart = csT.hour*3600 + csT.minute*60 + csT.second + csT.microsecond/1e6
+            cycleTickStart = int(cycleSecondStart*fs_physio)
+            cycleStartTicks[cIDX] = cycleTickStart - tickStart
+
+            lastFrameInCycle = metaDataDict['TSeries'][tIDX][f'cycle_{cIDX}_Framemeta']['frameTime_rel'][-1]
+            cycleTickEnd = int(lastFrameInCycle*fs_physio)
+            cycleEndTicks[cIDX] = cycleTickEnd + cycleTickStart - tickStart
+
+        trialTicksFromStart[tIDX] = cycleStartTicks
+        lastTick[tIDX] = cycleEndTicks
+
+    
+    trializedData = {}
+
+    for t in trialTicksFromStart.keys():
+        startTick = int(trialTicksFromStart[t][0] - fs_physio) #added padding to show trial bounderies better
+        stopTick = int(lastTick[t][-1] + fs_physio)
+
+        ###
+        #c'est stupide, je sais. J'ameliorerai le code a l'avenir.
+        measurements = [ 'Spirometer_raw',
+                        'ECG_raw',
+                        'ECG_Rate_raw',
+                        'Air_Flow_Filter_(20Hz)_raw',
+                        'TV_raw',
+                        'Breath_Rate_raw']
+        ###
+
+
+        trializedMeasurements = {}
+        for dataType in measurements:
+            adjustedData = physDict[dataType][startingTick:]
+            trializedTrace = adjustedData[startTick:stopTick]
+            trializedMeasurements[dataType] = trializedTrace
+        trializedMeasurements['Trial_Trig'] = highsAdjusted[startTick:stopTick]
+        trializedData[t] = trializedMeasurements
+    return trializedData
+
+
