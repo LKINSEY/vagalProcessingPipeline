@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 import masknmf
 from skimage.transform import resize
 from scipy.ndimage import center_of_mass
+from datetime import datetime
 
 #registration and processing functions
 
@@ -875,8 +876,8 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
     return fig
 
 def extract_metadata(expmt):
-    trials = glob(expmt+'/TSeries*/')
-    zstackXML = glob(expmt+'/ZSeries*/*001.xml')[0]
+    trials = glob.glob(expmt+'/TSeries*/')
+    zstackXML = glob.glob(expmt+'/ZSeries*/*001.xml')[0]
     metaData = {}
     #zstack first
     try:
@@ -999,7 +1000,7 @@ def extract_metadata(expmt):
                 frameMeta['frameTime_abs'] = frameTime_abs
                 trialMeta[f'cycle_{cycleCount}_Framemeta'] = frameMeta
                 cycleCount+=1
-
+        trialMeta['nCycles'] = cycleCount
         tSeriesMeta[tidx] = trialMeta
 
     metaData['TSeries'] = tSeriesMeta
