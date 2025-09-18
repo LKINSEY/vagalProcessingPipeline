@@ -876,10 +876,26 @@ def analyze_roi_across_conditions(trialsBool, roiChoice, traces, notes, gcampROI
     return fig
 
 def extract_metadata(expmt):
+    metaData = {}
     trials = glob.glob(expmt+'/TSeries*/')
     zstackXML = glob.glob(expmt+'/ZSeries*/*001.xml')[0]
-    metaData = {}
-    #zstack first
+
+    #read expmtNotes in metaData extraction
+    expmtNotes = pd.read_excel(glob.glob(expmt+'\expmtNotes*.xlsx')[0])
+    #new style of notes moving forward will detail better what type of stimulation given
+    '''
+    new columns will be:
+    - duration
+        examples: 3s, 5s, 7s for exsp or insp stims, blank for baseline, and length of gas exposure for gas trials
+    - type
+        examples: insp, exsp, baseline-V, baseline-LF, hyperVent, hypoVent, hypoxia, hypercapnia, ect...
+    - magnitude
+        examples: 30, 20, 10, 5, 5
+    - magnitude units
+        examples: cmH2O, seconds, minutes
+    '''
+
+
     try:
         md= ET.parse(zstackXML)
     except FileNotFoundError:
@@ -936,10 +952,16 @@ def extract_metadata(expmt):
     metaData['ZSeries'] = ZSeriesMeta
 
 
-
-    #TSeries next
     tSeriesMeta = {}
+
     for tidx, tPath in enumerate(trials): #roughly 2-3s a trial for nFrames = 120
+        trialMeta = {}
+        trialMeta['type'] = expmtNotes['type'].values[tidx]
+        trialMeta['duration'] = expmtNotes['duration'].values[tidx]
+        trialMeta['magnitude'] = expmtNotes['magnitude'].values[tidx]
+        trialMeta['units'] = expmtNotes['units'].values[tidx]
+        
+        
         metaDataFN = os.path.join(
             tPath, 
             [FN for FN in os.listdir(tPath) if 'VoltageRecording' not in FN and '.xml' in FN][0]
@@ -950,7 +972,7 @@ def extract_metadata(expmt):
             print(f'No Meta Data For Trial {tidx}')
             # return
         root = md.getroot()
-        trialMeta = {}
+        
         cycleCount = 0
         for child in root:
             if len(child.attrib) == 0: #its our PVShard
