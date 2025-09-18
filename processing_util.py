@@ -1114,3 +1114,64 @@ def find_stim_tick_physio(duration, trialBreathingRate, fs_physio):
     endTick = np.where(np.diff(trialBreathingRate)== np.nanmax(np.diff(trialBreathingRate)))[0] - fs_physio
     startTick = int( endTick - (duration*fs_physio))
     return startTick
+
+
+def sync_physiology(physioDict, dataDict, metaData, duration):
+    '''
+    inputs:
+        physioDict (dict): raw data extracted from labcharts
+        dataDict (dict): traces extracted from segmentations of registered tiffs
+        metaData (dict): data extracted from XML files from Bruker microscope recordings
+    
+    outputs:
+
+    '''
+    plottingDict = {}
+    trializedPhysio = trialize_physiology(physioDict, metaData)
+    registeredTrials = [t for t in dataDict.keys() if type(t) is int]
+    trialIDX = 0
+    for tID in registeredTrials:
+        trialDict = {}
+        physioX = np.arange(start=-fs_physio, stop = len(trializedPhysio[trialIDX]['Trial_Trig'])-fs_physio, step=1)
+        trialDict['physioX'] = physioX
+        traceX = []
+        traceY = []
+        if metaData['TSeries'][trialIDX]['nCycles']>1:
+            trialStartTime = metaData['TSeries'][trialIDX]['cycle_0_time']
+            ts = datetime.strptime(trialStartTime[:15], "%H:%M:%S.%f")
+            trialStartSeconds = ts.hour*3600 + ts.minute*60 + ts.second + ts.microsecond/1e6
+            trialStartTick = int(trialStartSeconds*fs_physio)
+            # xCorrMatrices = [] #commenting out because not sure if I want this
+            for cIDX in range(metaData['TSeries'][trialIDX]['nCycles']):
+                frameTimeStamps = metaData['TSeries'][trialIDX][f'cycle_{cIDX}_Framemeta']['frameTime_abs'] # might need to change to relative just in case?
+                frameTicks = (frameTimeStamps*fs_physio).astype(int)
+                frameTicks = np.concatenate([frameTicks, np.array([frameTicks[-1]+1])], axis=0, dtype=int)
+                # roiTraces_xCorr = pd.DataFrame(np.array(dataDict[trialIDX][f'cycle{cIDX}_traces']).T).corr()
+                # xCorrMatrices.append(roiTraces_xCorr)
+                roiTraces = np.pad(np.array(dataDict[trialIDX][f'cycle{cIDX}_traces']).T, ((0,1),(0,0)), mode='constant', constant_values=np.nan)
+                traceX.append(frameTicks)
+                traceY.append(roiTraces)
+            # roiXCorr = np.nanmean(np.array(xCorrMatrices), axis=0) #not sure if this makes sense... assumes if 1 cycle is corr the next will be similar corr...
+        else:
+            frameTimeStamps = metaData['TSeries'][trialIDX]['cycle_0_Framemeta']['frameTime_abs']
+            frameTicks = (frameTimeStamps*fs_physio).astype(int)
+            traceX.append(frameTicks)
+            traceX = np.array(traceX)
+            traceY.append(np.array(dataDict[tID]['cycle0_traces']).T)
+            traceY = np.array(traceY)
+
+        traceX = np.concatenate(traceX, axis=0)
+        Fraw = np.concatenate(traceY, axis=0)
+        trialDict['Fraw'] = Fraw
+        stimTick = find_stim_tick_physio(duration, trializedPhysio[trialIDX]['Breath_Rate_raw'], fs_physio)
+        stimIDX = np.argmin(abs(traceX - stimTick))
+        fps = (1/float(metaData['TSeries'][0]['cycle_0_Framemeta']['fs']))
+        baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+        f0 = np.nanmean(Fraw[(stimIDX-baselinePeriod):stimIDX, :], axis=0)
+        dFF = (traceY - f0) / f0
+        trialDict['stimIDX'] = stimIDX
+        trialDict['dFF'] = dFF
+        trialDict['physio'] = trializedPhysio[trialIDX]
+        trialIDX+=1
+        plottingDict[tID] = trialDict
+    return plottingDict
