@@ -15,11 +15,44 @@ from datetime import datetime
 
 #registration and processing functions
 
-def extract_roi_traces(expmtPath):
+def define_unique_fovs(metaData):
+    fovNum = 0
+    fovList = []
+    fovID = ((0,0,0),0,(0,0))
+    for tID in metaData['TSeries']:
+        motorPositions = metaData['TSeries'][tID]['stateShard']['positionCurrent']
+        xyzPos = (float(motorPositions['XAxis']), 
+                           float(motorPositions['YAxis']), 
+                           float(motorPositions['Z Focus']))
+        zoom = int(metaData['TSeries'][tID]['stateShard']['opticalZoom'])
+        resolution = (int(metaData['TSeries'][tID]['stateShard']['pixelsPerLine']),
+                      int(metaData['TSeries'][tID]['stateShard']['linesPerFrame']))
+        
+        thisFOV = (xyzPos, zoom, resolution)
+        print(thisFOV)
+        # return thisFOV
+        if metaData['TSeries'][tID]['QC'] == 1:
+            if set(thisFOV) == set(fovID):
+                fovList.append(fovNum)
+            else:
+                fovNum += 1
+                fovList.append(fovNum)
+                fovID = thisFOV
+        else:
+            fovList.append(-1)
+    return fovList
+
+def extract_roi_traces(expmtPath, metaData):
+    '''
+    parameters:
+        expmtPath (str): string path directing function to data directory
+        metaData (dict): metadata dictionary of extracted metadata for each trial
+    outputs:
+        dataDict (dict): data for each trial in dictionary format
+    '''
     print('\nExtracting:\n',expmtPath, flush=False)
     pad = 25 
     trialPaths = glob.glob(expmtPath+'/TSeries*')    
-    redZStack = glob.glob(expmtPath+'/ZSeries*/ZSeries*Ch1*.tif')[0]
     trialCounter = 0
     dataDict = {}
     numSegmentations = glob.glob(expmtPath+f'/cellCountingTiffs/*.npy')
@@ -30,10 +63,8 @@ def extract_roi_traces(expmtPath):
     except IndexError:
         print('Need to create expmtNotes for experiment! exiting...')
         return
+    
     slicePerTrial = expmtNotes['slice_label'].values
-    lungLabel = expmtNotes['lung_label'].values[0]
-    if lungLabel == 'WGA594':
-        wgaStack = tif.imread(redZStack)
 
     if os.path.exists(expmtPath+'/expmtTraces.pkl'):
         print('Traces Already Extracted')
@@ -41,7 +72,6 @@ def extract_roi_traces(expmtPath):
     else:
         if len(numSegmentations)>0: #make sure segmentations exist
             for trial in trialPaths:
-                #get our paths squared away
                 registeredTiffs_ch1 = glob.glob(trial+'/rT*C*Ch1.tif')
                 registeredTiffs_ch2 = glob.glob(trial+'/rT*C*Ch2.tif')
                 segmentationUsed = slicePerTrial[trialCounter]
@@ -135,10 +165,13 @@ def extract_roi_traces(expmtPath):
                 trialCounter += 1
         else:
             print('No ROIs segmented yet')
+            return None
     return dataDict
 
 def fft_rigid_cycle_moco_shifts(mIM, template):
     '''
+    I dont really use this, but its nice to have for sanity checks
+
     this method is for finding how much movement occurs from one cycle to another. Sometimes there is movement
     if the prep is not solidified under the scope, sometimes mechanical stim moves things, ect.
 
@@ -314,7 +347,6 @@ def register_tSeries(rawData, regParams, template = None):
 
 #Plotting and summary functions
 
-
 def extract_metadata(expmt):
     metaData = {}
     trials = glob.glob(expmt+'/TSeries*/')
@@ -400,6 +432,7 @@ def extract_metadata(expmt):
         trialMeta['duration'] = expmtNotes['duration'].values[tidx]
         trialMeta['magnitude'] = expmtNotes['magnitude'].values[tidx]
         trialMeta['units'] = expmtNotes['units'].values[tidx]
+        trialMeta['QC'] = expmtNotes['QC'].values[tidx]
         
         
         metaDataFN = os.path.join(
