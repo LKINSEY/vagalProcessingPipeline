@@ -62,7 +62,8 @@ def extract_roi_traces(expmtPath, metaData):
         print('Need to create expmtNotes for experiment! exiting...')
         return
     
-    slicePerTrial = expmtNotes['slice_label'].values
+    # slicePerTrial = expmtNotes['slice_label'].values
+    slicePerTrial = define_unique_fovs(metaData)
 
     if os.path.exists(expmtPath+'/expmtTraces.pkl'):
         print('Traces Already Extracted')
@@ -74,11 +75,11 @@ def extract_roi_traces(expmtPath, metaData):
                 registeredTiffs_ch2 = glob.glob(trial+'/rT*C*Ch2.tif')
                 segmentationUsed = slicePerTrial[trialCounter]
                 if segmentationUsed == -1:
-                    print('Skipping trial because zstack error')
+                    print('Skipping trial because Trial QCed!')
                     trialCounter += 1
                     continue
                 masksNPY = glob.glob(expmtPath+f'/cellCountingTiffs/*slice{segmentationUsed}_seg.npy')
-                print(masksNPY)
+                print(f'Extracting traces from fov {segmentationUsed} for trial {trialCounter}')
 
                 #Load and Sort ROIs
                 segmentationLoaded = np.load(masksNPY[0], allow_pickle=True).item()
@@ -93,27 +94,22 @@ def extract_roi_traces(expmtPath, metaData):
                 #generate mean image for roi view
                 masksIM = np.zeros((3, masks.shape[0], masks.shape[1]))
                 masksIM[1,:,:] = masks
-                
 
                 #generate roi outlines over WGA image to view WGA+ cells
                 outlineIM = np.zeros((3,masks.shape[0], masks.shape[1]))
                 outlineIM[0,:,:] = outlines>0
                 outlineIM[2,:,:] = outlines>0
-                #no longer using WGA594 - uncomment if processing older files
-                # if lungLabel == 'WGA594':
-                #     annTiff = tif.imread(glob.glob(expmtPath+f'/cellCountingTiffs/*slice{segmentationUsed}.tif')[0])
-                #     rIM = annTiff[0,:,:]
-                # else: #if trial_ch1 is the red image
-                #     rmIM = tif.imread(registeredTiffs_ch1[0]) #only the first cycle will be used since brightest
-                #     rmIM = np.nanmean(rmIM, axis=0)
-                
 
                 #some experiments are chopped up into cycles, others are not, this accounts for it
                 rois = np.unique(masks)[1:] 
                 cycleFeatures = {}
                 for cycleIDX in range(len(registeredTiffs_ch2)):
                     greenCycle = tif.imread(registeredTiffs_ch2[cycleIDX])
-                    redCycle = tif.imread(registeredTiffs_ch1[cycleIDX])
+                    #best way I can save this feature for later
+                    if len(registeredTiffs_ch1)>0:
+                        redCycle = tif.imread(registeredTiffs_ch1[cycleIDX])
+                    else:
+                        redCycle = greenCycle #when making plotting functions I will use this fact
 
                     if greenCycle.shape[1] != resolution[0]: #fit resolution of stack so rois match resolution of tif
                         print('Resizing cycle')
@@ -146,24 +142,30 @@ def extract_roi_traces(expmtPath, metaData):
                             roiFeatures[f'roi{roi}_diameter'] = [xDiameter, yDiameter]
                             roiFeatures[f'roi{roi}_windowCh1'] = rroiWindow
                             roiFeatures[f'roi{roi}_windowCh2'] = groiWindow
-                        extractedROI = greenCycle*(masks==roi)
+                        #get red trace
                         extractedROI_red = redCycle*(masks==roi)
+                        roiNaN_red = np.where(extractedROI_red==0, np.nan, extractedROI_red)
+                        roiTrace_red = np.nanmean(roiNaN_red, axis=(1,2))
+                        cycleTrace_red.append(roiTrace_red)
+                        #get green trace
+                        extractedROI = greenCycle*(masks==roi)
                         roiNAN = np.where(extractedROI==0, np.nan, extractedROI)
-                        # roiNaN_red = np.where(extractedROI_red==0, np.nan, extractedROI_red)
-                        # roiTrace_red = np.nanmean(roiNaN_red, axis=(1,2))
                         roiTrace = np.nanmean(roiNAN, axis=(1,2))
                         cycleTrace.append(roiTrace)
-                        cycleTrace_red.append(roiTrace_red)
+
                     cycleFeatures[f'cycle{cycleIDX}_traces'] = cycleTrace #raw unmodified traces
                     cycleFeatures[f'cycle{cycleIDX}_traces_red'] = cycleTrace_red
                     cycleFeatures[f'T{trialCounter}_roiFeatures'] = roiFeatures
+
                 dataDict[trialCounter] = cycleFeatures
                 dataDict[f'T{trialCounter}_masksIM'] = masksIM
                 dataDict[f'T{trialCounter}_outlinesIM'] = outlineIM
                 trialCounter += 1
+
         else:
             print('No ROIs segmented yet')
             return None
+        
     return dataDict
 
 def fft_rigid_cycle_moco_shifts(mIM, template):
