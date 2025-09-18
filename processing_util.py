@@ -29,8 +29,6 @@ def define_unique_fovs(metaData):
                       int(metaData['TSeries'][tID]['stateShard']['linesPerFrame']))
         
         thisFOV = (xyzPos, zoom, resolution)
-        print(thisFOV)
-        # return thisFOV
         if metaData['TSeries'][tID]['QC'] == 1:
             if set(thisFOV) == set(fovID):
                 fovList.append(fovNum)
@@ -200,7 +198,7 @@ def fft_rigid_cycle_moco_shifts(mIM, template):
     shifts = (pxlPosX , pxlPosY)
     return shifts
 
-def register_2ch_trials(expmtPath, regParams):
+def register_2ch_trials(expmtPath, metaData, regParams):
     '''
     No Longer Supporting Registration using alternative WGA Conjugates
     MUST have 2 channels recording moving forward
@@ -216,8 +214,13 @@ def register_2ch_trials(expmtPath, regParams):
         print('Need to create expmtNotes for experiment! exiting...')
         return
     
-    fovPerTrial = expmtNotes['slice_label'].values
+    # fovPerTrial = expmtNotes['slice_label'].values
+    # fovs = np.unique(fovPerTrial)
+
+    fovPerTrial = define_unique_fovs(metaData)
     fovs = np.unique(fovPerTrial)
+
+
     trialCount = 1
     for fov in fovs:
         fovBool = fovPerTrial==fov
