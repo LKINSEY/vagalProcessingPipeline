@@ -1126,6 +1126,7 @@ def sync_physiology(physioDict, dataDict, metaData, duration):
     outputs:
 
     '''
+    fs_physio = physioDict['Spirometer_fs']
     plottingDict = {}
     trializedPhysio = trialize_physiology(physioDict, metaData)
     registeredTrials = [t for t in dataDict.keys() if type(t) is int]
@@ -1137,10 +1138,6 @@ def sync_physiology(physioDict, dataDict, metaData, duration):
         traceX = []
         traceY = []
         if metaData['TSeries'][trialIDX]['nCycles']>1:
-            trialStartTime = metaData['TSeries'][trialIDX]['cycle_0_time']
-            ts = datetime.strptime(trialStartTime[:15], "%H:%M:%S.%f")
-            trialStartSeconds = ts.hour*3600 + ts.minute*60 + ts.second + ts.microsecond/1e6
-            trialStartTick = int(trialStartSeconds*fs_physio)
             # xCorrMatrices = [] #commenting out because not sure if I want this
             for cIDX in range(metaData['TSeries'][trialIDX]['nCycles']):
                 frameTimeStamps = metaData['TSeries'][trialIDX][f'cycle_{cIDX}_Framemeta']['frameTime_abs'] # might need to change to relative just in case?
