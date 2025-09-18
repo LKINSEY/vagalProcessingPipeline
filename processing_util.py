@@ -314,101 +314,6 @@ def register_tSeries(rawData, regParams, template = None):
 
 #Plotting and summary functions
 
-def sync_traces(expmtPath, dataDict):
-    '''
-    trials:
-    dataDict.keys() = dict_keys([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 'T0_masksIM', 'T0_outlinesIM', ect...])
-    traces or features:
-    dataDict[0].keys() = dict_keys(['cycle0_traces', 'cycle1_traces', ...ect...  'T0_roiFeatures'])
-    traces == raw data
-    features of rois
-    dataDict[0]['T0_roiFeatures'].keys() = dict_keys(['roi1_redAvg', 'roi1_diameter', 'roi1_window', ... ect...
-    
-    returns traces dict
-    traces.keys() = dict_keys([0, 'T0_roiOrder', ect...])
-    shape of traces[trialNum]
-    traces[0] --> (frame, roiNumber) roiNumber is from 0:len(rois), T0_roiOrder is the identity of each roi
-    
-    '''
-
-    #establish notes and output dict
-    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xlsx')[0])
-    trialPaths = glob.glob(expmtPath+'/TSeries*')
-    stimFrames = expmtNotes['stim_frame'].values
-    fpsPerTrial = expmtNotes['frame_rate'].values
-    trialPaths = glob.glob(expmtPath+'/TSeries*')
-    traceDict = {}
-    for trial in range(len(trialPaths)):
-        if trial not in dataDict.keys():
-            continue
-        print(f'\rSyncing traces for trial {trial+1}/{len(trialPaths)}', end='',flush=True)
-        try:
-            stimFrame = stimFrames[trial]
-            trialPath = trialPaths[trial]
-            nCycles = len(glob.glob(trialPath+'/rT*_C*_ch2.tif'))
-            gCaMPOnly = dataDict[trial][f'T{trial}_roiFeatures']['gCaMP_only_rois'] 
-            colabeledROIs = dataDict[trial][f'T{trial}_roiFeatures']['colabeled_rois']
-            if 0 in gCaMPOnly:
-                gCaMPOnly = gCaMPOnly[1:]
-            if 0 in colabeledROIs:
-                colabeledROIs = colabeledROIs[1:]
-            rois = np.unique(np.concat([colabeledROIs, gCaMPOnly]))
-        except:
-            print('error detected')
-            continue
-        
-        #iterate through registered cycle traces
-        trialTraceArray = []
-        trialTraceArray_red = []
-        for cycleIDX in range(nCycles):
-            intercycleinterval = 25
-            rawROIs = np.array(dataDict[trial][f'cycle{cycleIDX}_traces'])
-            # rawROIs_red = np.array(dataDict[trial][f'cycle{cycleIDX}_traces_red'])
-            #concatenating ventialtor is synced to microscope we concatenat trials with vent signal as last trace
-            if stimFrame == 'voltage':
-                fps = fpsPerTrial[trial]
-                ventilatorSamplingRate = 10000 #will read xml in future to retrieve this, but this usually is pretty consistent
-                downSampleVent = round(ventilatorSamplingRate/fps) #so for a 29.94 Hz recording this will sample vent trace every 334th frame
-                voltageSignals = glob.glob(trialPath+'/TSeries*VoltageRecording*.csv')
-                if 'baseline' in expmtNotes['stim_type'].values[trial]:
-                    trialTraceArray.append(rawROIs)
-                    # trialTraceArray_red.append(rawROIs_red)
-                elif 'gas' in expmtNotes['stim_type'].values[trial]:
-                    trialTraceArray.append(np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)) #pad to show time seperation 
-                    # trialTraceArray_red.append(np.pad(rawROIs_red, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan))
-                else:
-                    ventilatorTrace = (((pd.read_csv(voltageSignals[cycleIDX]).iloc[:,3]>3.).astype(float)-2)/4)[::downSampleVent]
-                    if ventilatorTrace.shape[0] == rawROIs.shape[1]:
-                        rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
-                        # rawTracesPadded_red = np.pad(rawROIs_red, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
-                        voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)
-                        addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
-                        # addToTraces_red = np.vstack([rawTracesPadded_red, voltageTracePadded])
-                        trialTraceArray.append(addToTraces)
-                        # trialTraceArray_red.append(addToTraces_red)
-                    else:
-                        try:
-                            rawTracesPadded = np.pad(rawROIs, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
-                            # rawTracesPadded_red = np.pad(rawROIs_red, ((0,0),(0,intercycleinterval)), mode='constant', constant_values=np.nan)
-                            voltageTracePadded = np.pad(np.array(ventilatorTrace), (0,intercycleinterval), mode='constant', constant_values=np.nan)[1:]
-                            print(f'\nTrial {trial+1} Sampling is off by 1\n')
-                            addToTraces = np.vstack([rawTracesPadded, voltageTracePadded])
-                            # addToTraces_red = np.vstack([rawTracesPadded_red, voltageTracePadded])
-                            trialTraceArray.append(addToTraces)    
-                            # trialTraceArray_red.append(addToTraces_red)                     
-                        except ValueError:
-                            print('\n error with cycle - ommitting')
-
-            else: #if manually recorded stim frame (it is not split into trials if it is this case)
-                trialTraceArray.append(rawROIs)
-                # trialTraceArray_red.append(rawROIs_red)
-        trialTrace = np.hstack(trialTraceArray).T
-        # trialTrace_red = np.hstack(trialTraceArray_red).T
-        traceDict[trial] = trialTrace
-        # traceDict[f'{trial}_iso'] = trialTrace_red
-        traceDict[f'T{trial}_roiOrder'] = rois
-    print(f'\r{expmtPath} synced!\n', end='', flush=True)
-    return traceDict 
 
 def compare_all_ROIs(conditionStr, trial, traces, notes, expmt):
     rawF = traces[trial].T
@@ -1169,14 +1074,26 @@ def sync_physiology(physioDict, dataDict, metaData):
         Fraw = np.concatenate(traceY, axis=0)
         trialDict['Fraw'] = Fraw
         trialDict['traceX'] = traceX
-        duration = metaData['TSeries'][tID]['duration']
-        stimTick = find_stim_tick_physio(duration, trializedPhysio[tID]['Breath_Rate_raw'], fs_physio)
-        stimIDX = np.argmin(abs(traceX - stimTick))
-        fps = (1/float(metaData['TSeries'][0]['cycle_0_Framemeta']['fs']))
-        baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
-        f0 = np.nanmean(Fraw[(stimIDX-baselinePeriod):stimIDX, :], axis=0)
+        trialType = metaData['TSeries'][tID]['type']
+        if 'baseline' in trialType:
+            fps = (1/float(metaData['TSeries'][tID]['cycle_0_Framemeta']['fs']))
+            baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+            f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
+            trialDict['stimIDX'] = np.nan
+
+        #will include 'gas' criteria here soon
+        #elif 'gas' in trialType
+
+        else:
+            duration = metaData['TSeries'][tID]['duration']
+            stimTick = find_stim_tick_physio(duration, trializedPhysio[tID]['Breath_Rate_raw'], fs_physio)
+            stimIDX = np.argmin(abs(traceX - stimTick))
+            fps = (1/float(metaData['TSeries'][tID]['cycle_0_Framemeta']['fs']))
+            baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+            f0 = np.nanmean(Fraw[(stimIDX-baselinePeriod):stimIDX, :], axis=0)
+            trialDict['stimIDX'] = stimIDX
+        
         dFF = (traceY - f0) / f0
-        trialDict['stimIDX'] = stimIDX
         trialDict['dFF'] = dFF
         trialDict['physio'] = trializedPhysio[tID]
         trialIDX+=1
