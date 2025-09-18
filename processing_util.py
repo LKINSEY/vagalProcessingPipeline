@@ -1088,4 +1088,7 @@ def trialize_physiology(physDict, metaDataDict):
         trializedData[t] = trializedMeasurements
     return trializedData
 
-
+def find_stim_tick_physio(duration, trialBreathingRate, fs_physio):
+    endTick = np.where(np.diff(trialBreathingRate)== np.nanmax(np.diff(trialBreathingRate)))[0] - fs_physio
+    startTick = int( endTick - (duration*fs_physio))
+    return startTick
