@@ -1,15 +1,17 @@
 #%%
 import glob, pickle
+from datetime import datetime
 from processing_util import *
 
 if __name__=='__main__':
+    
     dataFrom = [
         'U:/expmtRecords/Lucas*',
-        'C:/Analysis/april_data/Lucas*',
-        'U:/expmtRecords/res_galvo/Lucas*',
-        'U:/expmtRecords/mech_galvo/Lucas*',
+        'U:/expmtRecords/september2025/*'
         ]
-    expmtRecords = glob.glob(dataFrom[3])
+    
+    expmtRecords = glob.glob(dataFrom[4])
+    
     regParams = {
         'maxShifts': [25,25],
         'frames_per_split': 1000, 
@@ -23,17 +25,35 @@ if __name__=='__main__':
 
     for expmt in expmtRecords:
     
-        metaData = extract_metaData(expmt)
+
+
+        
+        metaData = extract_metadata(expmt)
         metaData['regParams'] = regParams
         
-        register_2ch_trials(expmt, regParams)
+        register_2ch_trials(expmt, metaData, regParams)
         #insert cellpose command here
-        dataDict = extract_roi_traces(expmt)
+        dataDict = extract_roi_traces(expmt, metaData)
+        
+        
         if dataDict:
             if not dataDict[1]:
-                print('Processing Error - not writing pickle')
+                print('Dictionary is Currupt - aborting')
             else:
                 with open(expmt+'/expmtTraces.pkl', 'wb') as f:
                     pickle.dump(dataDict, f)
+                with open(expmt+'/metaData.pkl', 'wb') as f:
+                    pickle.dump(metaData, f)
+            try:
+                with open(expmt+'/expmtPhysiology.pkl', 'rb') as f:
+                    physioDict = pickle.load(f)
+                synchronizedTraces = sync_physiology(physioDict, dataDict, metaData)
+                with open(expmt+f'/expmtSummary_{datetime.now().strftime("%Y-%m-%d_%H:%M")}.pkl', 'wb') as f:
+                    pickle.dump(synchronizedTraces, f)
+            except:
+                print('No Physiological Pickle Detected ')
+
+
+
 
 # %%
