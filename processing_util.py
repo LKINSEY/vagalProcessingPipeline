@@ -245,8 +245,8 @@ def register_2ch_trials(expmtPath, metaData, regParams):
                         annTiffFN = str(annTiffDr / f'cellCounting_T{trialCount-1}_slice{fov}.tif')
                         if cycleIDX == 0:
                             #first cycle of first trial in set -- everything will be aligned to first cycle of first trial in set, so only do this once
-                            registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = None)
-                            registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = None)
+                            registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = None)
+                            registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = None)
                             mTemplate = np.nanmean(registeredCycle, axis=0)
                             mRedIM = np.nanmean(registeredRed, axis=0)  
                             _ = make_annotation_tif(mTemplate, mTemplate, mRedIM, 5, annTiffFN, mTemplate.shape)
@@ -254,8 +254,8 @@ def register_2ch_trials(expmtPath, metaData, regParams):
                             tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
                         else:
                             #consecutive cycle of first trial in set (if it exists)
-                            registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
-                            registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
+                            registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                            registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
                             mCycle = np.nanmean(registeredCycle, axis=0)
                             cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
                             redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
@@ -264,8 +264,8 @@ def register_2ch_trials(expmtPath, metaData, regParams):
                     else: 
                         # for all cycles of consecutive trials in trial set 
                         loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
-                        registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
-                        registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
+                        registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                        registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
                         mCycle = np.nanmean(registeredCycle, axis=0)
                         tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', registeredCycle[:])
                         tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
@@ -346,7 +346,25 @@ def register_tSeries(rawData, regParams, template = None):
 
     return moco_results[:]
 
+def register_tSeries_rigid(rawData, regParams, template = None):
+    max_shifts = regParams['maxShifts']
+    device = regParams['device']
 
+    #code copied from repo's demo
+    if template is None:
+        rigid_strategy = masknmf.RigidMotionCorrection(max_shifts = max_shifts)
+
+        rigid_strategy = masknmf.motion_correction.compute_template(rawData,
+                                                                    rigid_strategy,
+                                                                    device = device,)
+        
+        moco_results = masknmf.RegistrationArray(rawData, rigid_strategy, device = device)
+    else:
+        rigid_strategy = masknmf.RigidMotionCorrection(max_shifts = max_shifts,
+                                                       template = torch.tensor(template))
+        moco_results = masknmf.RegistrationArray(rawData, rigid_strategy, device = device)
+
+    return moco_results[:]
 
 
 
@@ -521,7 +539,7 @@ def trialize_physiology(physDict, metaDataDict):
 
     zStackStart = 0
     errs = []
-    for i in range(5): #highly improbable to have >5 scans before a zstack in a given physiological recording
+    for i in range(10): #highly improbable to have >10 scans before a zstack in a given physiological recording
         shiftedEdges = np.roll(edgeDistances, shift = -zStackStart)
         firstNEdges = shiftedEdges[:nSlices]
         errs.append(np.sum(abs(firstNEdges - deltaTicks_expected)))
@@ -672,3 +690,6 @@ def sync_physiology(physioDict, dataDict, metaData):
         trialIDX+=1
         plottingDict[tID] = trialDict
     return plottingDict
+
+
+
