@@ -7,6 +7,7 @@ if __name__=='__main__':
     
     dataFrom = [
         'U:/expmtRecords/Lucas*',
+        'U:/expmtRecords/september2025/*'
         ]
     
     expmtRecords = glob.glob(dataFrom[4])
@@ -24,11 +25,7 @@ if __name__=='__main__':
 
     for expmt in expmtRecords:
     
-        try:
-            with open(expmt+'/expmtPhysiology.pkl', 'rb') as f:
-                physioDict = pickle.load(f)
-        except:
-            print('No Physiological Pickle Detected ')
+
 
         
         metaData = extract_metadata(expmt)
@@ -37,6 +34,8 @@ if __name__=='__main__':
         register_2ch_trials(expmt, metaData, regParams)
         #insert cellpose command here
         dataDict = extract_roi_traces(expmt, metaData)
+        
+        
         if dataDict:
             if not dataDict[1]:
                 print('Dictionary is Currupt - aborting')
@@ -45,10 +44,16 @@ if __name__=='__main__':
                     pickle.dump(dataDict, f)
                 with open(expmt+'/metaData.pkl', 'wb') as f:
                     pickle.dump(metaData, f)
-            if physioDict:
+            try:
+                with open(expmt+'/expmtPhysiology.pkl', 'rb') as f:
+                    physioDict = pickle.load(f)
                 synchronizedTraces = sync_physiology(physioDict, dataDict, metaData)
                 with open(expmt+f'/expmtSummary_{datetime.now().strftime("%Y-%m-%d_%H:%M")}.pkl', 'wb') as f:
                     pickle.dump(synchronizedTraces, f)
+            except:
+                print('No Physiological Pickle Detected ')
+
+
 
 
 # %%
