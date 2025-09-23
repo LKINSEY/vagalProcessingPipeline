@@ -730,7 +730,7 @@ def generate_physiology_figures(expmtPath, sumDict=None, dataDict=None):
         outlines = np.permute_dims(dataDict[f'T{trial}_outlinesIM'], (1,2,0))
         gcampROIs = dataDict[trial][f'T{trial}_roiFeatures']['gCaMP_only_rois']
         colabeledROIs = dataDict[trial][f'T{trial}_roiFeatures']['colabeled_rois']
-        roiList = np.concat([colabeledROIs, gcampROIs])
+        roiList = np.unique(np.concat([colabeledROIs, gcampROIs])) #makes same order as roi array organized
 
 
         #Trace Info Requires ExpmtSummary Dict
