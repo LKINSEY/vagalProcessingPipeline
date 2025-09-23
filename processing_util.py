@@ -67,7 +67,9 @@ def extract_roi_traces(expmtPath, metaData):
 
     if os.path.exists(expmtPath+'/expmtTraces.pkl'):
         print('Traces Already Extracted')
-        return None
+        with open(expmtPath+'/expmtTraces.pkl', 'rb') as f:
+            dataDict = pickle.load(f)
+        return dataDict
     else:
         if len(numSegmentations)>0: #make sure segmentations exist
             for trial in trialPaths:
