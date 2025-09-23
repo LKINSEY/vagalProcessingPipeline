@@ -691,7 +691,7 @@ def sync_physiology(physioDict, dataDict, metaData):
         plottingDict[tID] = trialDict
     return plottingDict
 
-def generate_physiology_figures(expmtPath):
+def generate_physiology_figures(expmtPath, sumDict=None, dataDict=None):
 
     #Set Up Save Dir
     figureDR = Path(expmtPath)/'figures'
@@ -701,14 +701,15 @@ def generate_physiology_figures(expmtPath):
     step = 4
 
     #get appropriate files
-    summaryPkl = glob.glob(expmtPath+'/expmtSummary*.pkl')[0]
-    tracesPkl = glob.glob(expmtPath+'/expmtTraces*.pkl')[0]
     expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xlsx')[0])
-
-    with open(summaryPkl, 'rb') as f:
-        sumDict = pickle.load(f)
-    with open(tracesPkl, 'rb') as g:
-        dataDict = pickle.load(g)
+    if sumDict is None:
+        summaryPkl = glob.glob(expmtPath+'/expmtSummary*.pkl')[0]
+        with open(summaryPkl, 'rb') as f:
+            sumDict = pickle.load(f)
+    if dataDict is None:
+        tracesPkl = glob.glob(expmtPath+'/expmtTraces*.pkl')[0]
+        with open(tracesPkl, 'rb') as g:
+            dataDict = pickle.load(g)
 
     for trial in sumDict.keys():
         
@@ -812,3 +813,6 @@ def generate_physiology_figures(expmtPath):
             plt.tight_layout(h_pad=1.5)
             plt.savefig(pdfSummary, format='pdf')
         pdfSummary.close() 
+
+
+
