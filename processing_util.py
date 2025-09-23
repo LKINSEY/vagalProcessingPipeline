@@ -691,5 +691,124 @@ def sync_physiology(physioDict, dataDict, metaData):
         plottingDict[tID] = trialDict
     return plottingDict
 
+def generate_physiology_figures(expmtPath):
+
+    #Set Up Save Dir
+    figureDR = Path(expmtPath)/'figures'
+    figureDR.mkdir(parents=True, exist_ok=True)
+
+    #"split" param
+    step = 4
+
+    #get appropriate files
+    summaryPkl = glob.glob(expmtPath+'/expmtSummary*.pkl')[0]
+    tracesPkl = glob.glob(expmtPath+'/expmtTraces*.pkl')[0]
+    expmtNotes = pd.read_excel(glob.glob(expmtPath+'/expmtNotes*.xlsx')[0])
+
+    with open(summaryPkl, 'rb') as f:
+        sumDict = pickle.load(f)
+    with open(tracesPkl, 'rb') as g:
+        dataDict = pickle.load(g)
+
+    for trial in sumDict.keys():
+        
+        condition = expmtNotes['type'].values[int(trial)]
+        duration = expmtNotes['duration'].values[int(trial)]
+        magnitude = expmtNotes['magnitude'].values[int(trial)]
+        units = expmtNotes['units'].values[int(trial)]
 
 
+        #one PDF per trial
+        saveFN = str(figureDR / f'trial_{trial}_{condition}-{duration}s-{magnitude}{units}.pdf')
+        pdfSummary = PdfPages(saveFN)
+
+
+
+        #ROI Segmentation Info Requires DataDict
+        masks = np.permute_dims(dataDict[f'T{trial}_masksIM'], (1,2,0))
+        outlines = np.permute_dims(dataDict[f'T{trial}_outlinesIM'], (1,2,0))
+        gcampROIs = dataDict[trial][f'T{trial}_roiFeatures']['gCaMP_only_rois']
+        colabeledROIs = dataDict[trial][f'T{trial}_roiFeatures']['colabeled_rois']
+        roiList = np.concat([colabeledROIs, gcampROIs])
+
+
+        #Trace Info Requires ExpmtSummary Dict
+        physioY_traces = sumDict[trial]['physio']
+        dFF_traces = sumDict[trial]['dFF']
+        if len(dFF_traces.shape) == 3:
+            dFF_traces = np.concatenate(dFF_traces, axis=0)
+        stimIDX = sumDict[trial]['stimIDX']
+        traceX = sumDict[trial]['traceX']
+        physioX = sumDict[trial]['physioX']
+        nROIs = dFF_traces.shape[1]
+
+        for i in np.arange(0, nROIs, step):
+
+            #Split up data for easier visualization
+            if i+5>nROIs:
+                roisThisIter = roiList[i:]
+                plottingDFFs = dFF_traces[:,i:]
+            else:
+                roisThisIter = roiList[i:i+step]
+                plottingDFFs = dFF_traces[:,i:i+step]
+            maskIM = copy.deepcopy(masks)
+            maskIM[:,:,1] = np.isin(masks[:,:,1], roisThisIter)
+
+            #Geometricly Space Out Plots on Figure
+            fig = plt.figure(figsize=(15, 8))
+            gs = fig.add_gridspec(4,2, width_ratios = [3,2])
+
+            #plt plots
+            dFF_plot = fig.add_subplot(gs[0,0])
+            dFF_plot.plot(traceX, plottingDFFs)
+            dFF_plot.set_title(f'dFF Traces - trial_{trial}_{condition}-{duration}s-{magnitude}{units}')
+            dFF_plot.legend(roisThisIter)
+            ventFilt_plot = fig.add_subplot(gs[3,0], sharex=dFF_plot)
+            ventFilt_plot.plot(physioX, physioY_traces['Spirometer_raw'])
+            ventFilt_plot.set_title('Filtered Vent Signal')
+            TV_plot = fig.add_subplot(gs[2,0], sharex=dFF_plot)
+            TV_plot.plot(physioX, physioY_traces['TV_raw'])
+            TV_plot.set_title('Tidal Volume')
+            ECGrate_plot = fig.add_subplot(gs[1,0], sharex=dFF_plot)
+            ECGrate_plot.plot(physioX, physioY_traces['ECG_Rate_raw'])
+            ECGrate_plot.set_title('Heart Rate')
+            
+            #if there is a stim frame
+            if np.isnan(stimIDX): 
+                pass
+            else:
+                dFF_plot.axvline(traceX[stimIDX], color='black', alpha=0.5, label='Stim Timing')
+                ventFilt_plot.axvline(traceX[stimIDX], color='black', alpha=0.5)
+                TV_plot.axvline(traceX[stimIDX], color='black', alpha=0.5)
+                ECGrate_plot.axvline(traceX[stimIDX], color='black', alpha=0.5)
+
+            #Imshows
+            textColors = [
+                Patch(facecolor='#FF4500', edgecolor='#FF4500', label='WGA+'),
+                Patch(facecolor='black', edgecolor='black', label='WGA-')
+            ]
+            masksIMSHOW = fig.add_subplot(gs[0:2, 1])
+            masksIMSHOW.imshow(maskIM)
+            gcampCenters = []
+            colabeledCenters = []
+            for roi in roisThisIter:
+                y,x = center_of_mass(masks[:,:,1]==roi)
+                if roi in gcampROIs:
+                    masksIMSHOW.text(x,y, f'{roi}', color='black', size=5, label='WGA-')
+                elif roi in colabeledROIs:
+                    masksIMSHOW.text(x, y, f'{roi}', color='#FF4500', size=5)
+            masksIMSHOW.get_xaxis().set_visible(False)
+            masksIMSHOW.get_yaxis().set_visible(False)
+            masksIMSHOW.legend(handles=textColors, loc='upper right', title='ROI Colors')
+            masksIMSHOW.set_title('Segmentation Masks Ch2 Overlay')
+            outlineIMSHOW = fig.add_subplot(gs[2:4, 1])
+            outlineIMSHOW.imshow(outlines)
+            for roi in roisThisIter:
+                y,x = center_of_mass(masks[:,:,1]==roi)
+                outlineIMSHOW.text(x,y, f'{roi}', color='pink', size=5)
+            outlineIMSHOW.get_xaxis().set_visible(False)
+            outlineIMSHOW.get_yaxis().set_visible(False)
+            outlineIMSHOW.set_title('Segmentation Outline Ch1 Overlay')
+            plt.tight_layout(h_pad=1.5)
+            plt.savefig(pdfSummary, format='pdf')
+        pdfSummary.close() 
