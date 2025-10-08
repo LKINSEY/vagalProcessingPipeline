@@ -1,14 +1,16 @@
 #open appropriate file beforehand
-
+#%%
 import labchart
 import win32com.client
 import matplotlib.pyplot as plt
 import pickle
 import matplotlib
+from processing_util import include_comments
+
 matplotlib.use('WebAgg') 
-
-expmtPathToSave = 'U:/expmtRecords/september2025/Lucas_250911_002/'
-
+#%%
+expmtPathToSave = 'U:/expmtRecords/september2025/Lucas_250912_001/'
+adichtFN = '092925-recording.adicht'
 app = labchart.Application()
 doc = app.active_document
 blockNum = 2
@@ -31,6 +33,12 @@ for chanName in doc.channel_names:
 #     plt.plot(result['y'])
 #     plt.title(chanName)
 # plt.show()
+
+dataDict['comments'] = include_comments(
+    expmtPathToSave+adichtFN,
+    dataDict,
+    1
+)
 
 #be sure to specify expmt or baseline
 with open(expmtPathToSave+'baselinePhysiology.pkl', 'wb') as f:

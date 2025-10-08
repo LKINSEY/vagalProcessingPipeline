@@ -13,6 +13,22 @@ from skimage.transform import resize
 from scipy.ndimage import center_of_mass
 from datetime import datetime
 
+#Additional Physiology Function
+def include_comments(physioPath, physDict, recordNum):
+    import adi
+    expmtFile = adi.read_file(physioPath)
+    comments = expmtFile.records[recordNum].comments
+    commentDict = {}
+    commentNumber = 0
+    for comment in comments:
+        commentDict[commentNumber] = {
+            'note': comment.text,
+            'x': comment.tick_position
+        }
+        commentNumber += 1
+    physDict['comments']=commentDict
+    return physDict
+
 
 #registration and processing functions
 def define_unique_fovs(metaData):
