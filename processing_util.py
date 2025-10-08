@@ -2,7 +2,7 @@
 import tifffile as tif
 import numpy as np
 import pandas as pd
-import os, glob, pickle, cv2, torch
+import os, glob, pickle, cv2, torch, copy
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Patch
@@ -13,12 +13,21 @@ from skimage.transform import resize
 from scipy.ndimage import center_of_mass
 from datetime import datetime
 
-#registration and processing functions
 
+#registration and processing functions
 def define_unique_fovs(metaData):
-    fovNum = 0
+
+    zTolerance = 6
+    xyTolerance = 10
+    fovNum = -1
     fovList = []
-    fovID = ((0,0,0),0,(0,0))
+    fovID = ((0,0,0),0,(0,0)) # this is for troubleshooting
+    paramPseudo = (0, (0,0))
+    x_hist = []
+    y_hist = []
+    z_hist = []
+
+    # pseudoX, pseudoY, pseudoZ = 0,0,0
     for tID in metaData['TSeries']:
         motorPositions = metaData['TSeries'][tID]['stateShard']['positionCurrent']
         xyzPos = (float(motorPositions['XAxis']), 
@@ -29,13 +38,57 @@ def define_unique_fovs(metaData):
                       int(metaData['TSeries'][tID]['stateShard']['linesPerFrame']))
         
         thisFOV = (xyzPos, zoom, resolution)
+        thisParamPseudo = (zoom, resolution)
+        thisX,thisY,thisZ = np.round(xyzPos[0]).astype(int),np.round(xyzPos[1]).astype(int),np.round(xyzPos[2]).astype(int)
+        
+        # z_hist.append(thisZ)
+        z_hist.append(thisZ)
+        x_hist.append(thisX)
+        y_hist.append(thisY)
+
+        tempZ = np.tile(thisZ, tID+1)
+        tempX = np.tile(thisX, tID+1)
+        tempY = np.tile(thisY, tID+1)
+        planeCheck = np.where(np.abs(np.array(z_hist) - tempZ)<zTolerance)[0]
+        gridCheck_X = np.where(np.abs(np.array(x_hist) - tempX)<xyTolerance)[0]
+        gridCheck_Y = np.where(np.abs(np.array(y_hist) - tempY)<xyTolerance)[0]
+
+        # print(z_hist)
+        # print((np.array(z_hist) - tempZ))
+        print(tID, '******************************')
+        print(thisFOV)
+        print(np.where(np.abs(np.array(z_hist) - tempZ)<zTolerance))
+        print(len(planeCheck), len(gridCheck_X), len(gridCheck_Y))
+        
+        
         if metaData['TSeries'][tID]['QC'] == 1:
-            if set(thisFOV) == set(fovID):
-                fovList.append(fovNum)
+            if set(thisParamPseudo) == set(paramPseudo):
+                # print('Same Resolution and Zoom as Previous Trial')
+                
+                if len(planeCheck) == 1:
+                    # print('z - new FOV')
+                    fovNum += 1
+                    fovList.append(fovNum)
+                    fovID = thisFOV
+                else:
+                    if len(gridCheck_X) == 1 or len(gridCheck_Y) == 1:
+                        # print('x/y- new FOV')
+                        fovNum += 1
+                        fovList.append(fovNum)
+                        fovID = thisFOV
+                    else:
+                        # print('persistant')
+                        fovList.append(fovList[planeCheck[0]])
+            
+
+
             else:
+                # print('New Resolution and zoom  therefore new FOV')
+                paramPseudo = thisParamPseudo
                 fovNum += 1
                 fovList.append(fovNum)
                 fovID = thisFOV
+
         else:
             fovList.append(-1)
     return fovList

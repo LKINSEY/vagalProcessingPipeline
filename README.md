@@ -1,7 +1,8 @@
 # vagalProcessingPipeline
 Processing pipeline that utilizes jnormcorre and cellpose to compress multi photon calcium imaging experiments of the vagal ganglia
 
-# UPDATE: using labcharts for physiological recordings - see new pip install
+# Work to come
+We are going to start using AI to help fully automate processing
 
 # Installation:
 ```
@@ -18,6 +19,8 @@ pip install git+https://github.com/apasarkar/masknmf-toolbox.git@main
 pip install git+https://github.com/JimHokanson/labchart_server_python.git
 
 pip install alicat, pandas, openpyxl, opencv-python
+
+pip install ollama
 
 ```
 **IMPORTANT**
