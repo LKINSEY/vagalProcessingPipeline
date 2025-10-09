@@ -444,7 +444,7 @@ def register_tSeries_rigid(rawData, regParams, template = None):
 def extract_metadata(expmt):
     metaData = {}
     trials = glob.glob(expmt+'/TSeries*/')
-    zstackXML = glob.glob(expmt+'/ZSeries*/*001.xml')[0]
+    zstackXML = glob.glob(expmt+'/ZSeries*/*.xml')[0]
 
     #read expmtNotes in metaData extraction
     expmtNotes = pd.read_excel(glob.glob(expmt+'\expmtNotes*.xlsx')[0])
@@ -505,8 +505,13 @@ def extract_metadata(expmt):
                 positionMeta = {}
                 for shard in frame:
                     if len(shard)>0:
-                        for axis in shard[0]:
-                            positionMeta[axis.get('index')] = axis[0].get('value')
+                        try:
+                            for axis in shard[0]:
+                                positionMeta[axis.get('index')] = axis[0].get('value')
+                        except IndexError:
+                            positionMeta['XAxis'] = np.nan
+                            positionMeta['YAxis'] = np.nan
+                            positionMeta['ZAxis'] = np.nan
                 frameMeta[sliceIDX] = positionMeta
                 sliceIDX+=1
             stackMeta['scanTimes_rel'] = sliceRelTimes
