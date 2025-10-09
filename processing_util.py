@@ -30,20 +30,21 @@ def include_comments(physioPath, physDict, recordNum):
     return physDict
 
 #registration and processing functions
-def define_unique_fovs(metaData):
-
+def define_unique_fovs_test(metaData):
     zTolerance = 6
     xyTolerance = 10
     fovNum = -1
-    fovList = []
-    fovID = ((0,0,0),0,(0,0)) # this is for troubleshooting
-    paramPseudo = (0, (0,0))
+    fovList = np.zeros((len(metaData['TSeries']),))
+    zoom = int(metaData['TSeries'][0]['stateShard']['opticalZoom'])
+    resolution = (int(metaData['TSeries'][0]['stateShard']['pixelsPerLine']),
+                    int(metaData['TSeries'][0]['stateShard']['linesPerFrame']))
+    paramPseudo = (zoom, resolution)
     x_hist = []
     y_hist = []
     z_hist = []
 
-    # pseudoX, pseudoY, pseudoZ = 0,0,0
     for tID in metaData['TSeries']:
+        #step 1: get xyz and other meta
         motorPositions = metaData['TSeries'][tID]['stateShard']['positionCurrent']
         xyzPos = (float(motorPositions['XAxis']), 
                            float(motorPositions['YAxis']), 
@@ -51,55 +52,38 @@ def define_unique_fovs(metaData):
         zoom = int(metaData['TSeries'][tID]['stateShard']['opticalZoom'])
         resolution = (int(metaData['TSeries'][tID]['stateShard']['pixelsPerLine']),
                       int(metaData['TSeries'][tID]['stateShard']['linesPerFrame']))
-        
-        thisFOV = (xyzPos, zoom, resolution)
         thisParamPseudo = (zoom, resolution)
         thisX,thisY,thisZ = np.round(xyzPos[0]).astype(int),np.round(xyzPos[1]).astype(int),np.round(xyzPos[2]).astype(int)
         
-        # z_hist.append(thisZ)
+        #Step 2: remember this trial's xyz pos
         z_hist.append(thisZ)
         x_hist.append(thisX)
         y_hist.append(thisY)
 
+        #step 3: compare this trials xyz with the xyz history
         tempZ = np.tile(thisZ, tID+1)
         tempX = np.tile(thisX, tID+1)
         tempY = np.tile(thisY, tID+1)
-        planeCheck = np.where(np.abs(np.array(z_hist) - tempZ)<zTolerance)[0]
-        gridCheck_X = np.where(np.abs(np.array(x_hist) - tempX)<xyTolerance)[0]
-        gridCheck_Y = np.where(np.abs(np.array(y_hist) - tempY)<xyTolerance)[0]
-
-       
+        #specifically, this finds trials where the current position is within the tolerance of being considered same trial
+        planeCheck = np.where(np.abs(np.array(z_hist) - tempZ)<zTolerance, 1, 0)  
+        gridCheck_X = np.where(np.abs(np.array(x_hist) - tempX)<xyTolerance, 1, 0)
+        gridCheck_Y = np.where(np.abs(np.array(y_hist) - tempY)<xyTolerance, 1, 0)
         
+        #anywhere all 3 motors match a previous position is where we record the previous FOV
         if metaData['TSeries'][tID]['QC'] == 1:
             if set(thisParamPseudo) == set(paramPseudo):
-                
-                if len(planeCheck) == 1:
-                    # print('z - new FOV')
-                    fovNum += 1
-                    fovList.append(fovNum)
-                    fovID = thisFOV
-                else:
-                    if len(gridCheck_X) == 1 or len(gridCheck_Y) == 1:
-                        # print('x/y- new FOV')
-                        fovNum += 1
-                        fovList.append(fovNum)
-                        fovID = thisFOV
-                    else:
-                        # print('persistant')
-                        fovList.append(fovList[planeCheck[0]])
-            
-
-
-            else:
-                # print('New Resolution and zoom  therefore new FOV')
+                previousOccurenceArr = np.nansum(np.stack([planeCheck, gridCheck_X, gridCheck_Y]), axis=0)
+                previousOccurenceIDX = np.where(previousOccurenceArr==3)[0][0]
+                #FOV is recorded as a previous ID and not as a fov number, but rather the trial that the fov first appears on
+                fovList[tID] = previousOccurenceIDX
                 paramPseudo = thisParamPseudo
-                fovNum += 1
-                fovList.append(fovNum)
-                fovID = thisFOV
-
+            else:
+                fovList[tID] = fovList[tID]+1
+                paramPseudo = thisParamPseudo
         else:
-            fovList.append(-1)
-    return fovList
+            fovList[tID] = -1
+
+    return fovList.astype(int)
 
 def extract_roi_traces(expmtPath, metaData):
     '''
