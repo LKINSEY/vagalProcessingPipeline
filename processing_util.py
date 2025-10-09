@@ -663,12 +663,12 @@ def trialize_physiology(physDict, metaDataDict):
 
         #adding buffer to allow for visualization of trial bounderies
         if nCycles>1:
-           startTick =  int(tStartTicks[tScan]) - fs_physio
-           stopTick = int(tStopTicks[tScan+nCycles-1]) + fs_physio
+           startTick =  int(tStartTicks[tScan] - fs_physio)
+           stopTick = int(tStopTicks[tScan+nCycles-1] + fs_physio)
            tScan += nCycles
         else:
-            startTick = int(tStartTicks[tScan]) - fs_physio
-            stopTick = int(tStopTicks[tScan]) + fs_physio
+            startTick = int(tStartTicks[tScan] - fs_physio)
+            stopTick = int(tStopTicks[tScan] + fs_physio)
             tScan +=1
 
         for dataType in measurements:
