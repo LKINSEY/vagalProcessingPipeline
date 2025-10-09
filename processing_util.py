@@ -761,7 +761,7 @@ def sync_physiology(physioDict, dataDict, metaData):
             baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
             f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
             trialDict['stimIDX'] = np.nan
-        dFF = (traceY - f0) / f0
+        dFF = (Fraw - f0) / f0
         trialDict['dFF'] = dFF
         trialDict['physio'] = trializedPhysio[tID]
         trialIDX+=1
