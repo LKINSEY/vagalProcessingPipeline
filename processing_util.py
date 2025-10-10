@@ -30,7 +30,7 @@ def include_comments(physioPath, physDict, recordNum):
     return physDict
 
 #registration and processing functions
-def define_unique_fovs_test(metaData):
+def define_unique_fovs(metaData):
     zTolerance = 6
     xyTolerance = 10
     fovNum = -1
@@ -254,6 +254,7 @@ def register_2ch_trials(expmtPath, metaData, regParams):
     '''
     print('Registering:\n', expmtPath)
     trialPaths = np.array(glob.glob(expmtPath+'/TSeries*'))
+    trialIDs = np.arange(len(trialPaths))
     #omitting zstack loading for now since all experiments no longer use other WGA conjugates
 
     #expmt notes check
@@ -274,51 +275,56 @@ def register_2ch_trials(expmtPath, metaData, regParams):
     for fov in fovs:
         fovBool = fovPerTrial==fov
         trialSet = trialPaths[fovBool]
+        trialsUsed = trialIDs[fovBool]
         trialInSetCount = 0
         for trial in trialSet:
-            print(f'Registering Trial {trialCount} in FOV {fov}')
-            ch1Tiffs = glob.glob(trial+'/TSeries*Ch1*.tif')
-            ch2Tiffs = glob.glob(trial+'/TSeries*Ch2*.tif')
-            registeredTrials = glob.glob(trial+'/rT*_C*_ch*.tif')
-            if len(registeredTrials)==0:
-                for cycleIDX in range(len(ch2Tiffs)):
-                    print('Cycle', cycleIDX+1, 'of', len(ch2Tiffs))
-                    loadedCh1Tiff = tif.imread(ch1Tiffs[cycleIDX])
-                    loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
-                    if trialInSetCount == 0:
-                        #for the first trial in a trial set
-                        annTiffDr = Path(expmtPath)/'cellCountingTiffs'
-                        annTiffDr.mkdir(parents=True, exist_ok=True)
-                        annTiffFN = str(annTiffDr / f'cellCounting_T{trialCount-1}_slice{fov}.tif')
-                        if cycleIDX == 0:
-                            #first cycle of first trial in set -- everything will be aligned to first cycle of first trial in set, so only do this once
-                            registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = None)
-                            registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = None)
-                            mTemplate = np.nanmean(registeredCycle, axis=0)
-                            mRedIM = np.nanmean(registeredRed, axis=0)  
-                            _ = make_annotation_tif(mTemplate, mTemplate, mRedIM, 5, annTiffFN, mTemplate.shape)
+            t = trialsUsed[trialInSetCount]
+            print(f'Registering Trial {t} - FOV {fov}')
+            if metaData['TSeries'][t]['QC'] == 1:
+                ch1Tiffs = glob.glob(trial+'/TSeries*Ch1*.tif')
+                ch2Tiffs = glob.glob(trial+'/TSeries*Ch2*.tif')
+                registeredTrials = glob.glob(trial+'/rT*_C*_ch*.tif')
+                if len(registeredTrials)==0:
+                    for cycleIDX in range(len(ch2Tiffs)):
+                        print('Cycle', cycleIDX+1, 'of', len(ch2Tiffs))
+                        loadedCh1Tiff = tif.imread(ch1Tiffs[cycleIDX])
+                        loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
+                        if trialInSetCount == 0:
+                            #for the first trial in a trial set
+                            annTiffDr = Path(expmtPath)/'cellCountingTiffs'
+                            annTiffDr.mkdir(parents=True, exist_ok=True)
+                            annTiffFN = str(annTiffDr / f'cellCounting_T{trialCount-1}_slice{fov}.tif')
+                            if cycleIDX == 0:
+                                #first cycle of first trial in set -- everything will be aligned to first cycle of first trial in set, so only do this once
+                                registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = None)
+                                registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = None)
+                                mTemplate = np.nanmean(registeredCycle, axis=0)
+                                mRedIM = np.nanmean(registeredRed, axis=0)  
+                                _ = make_annotation_tif(mTemplate, mTemplate, mRedIM, 5, annTiffFN, mTemplate.shape)
+                                tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', registeredCycle[:])
+                                tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
+                            else:
+                                #consecutive cycle of first trial in set (if it exists)
+                                registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                                registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
+                                mCycle = np.nanmean(registeredCycle, axis=0)
+                                cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
+                                redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
+                                tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', cycleShifted[:])
+                                tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', redCycleShifted[:])
+                        else: 
+                            # for all cycles of consecutive trials in trial set 
+                            loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
+                            registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                            registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
+                            mCycle = np.nanmean(registeredCycle, axis=0)
                             tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', registeredCycle[:])
                             tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
-                        else:
-                            #consecutive cycle of first trial in set (if it exists)
-                            registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
-                            registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
-                            mCycle = np.nanmean(registeredCycle, axis=0)
-                            cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
-                            redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
-                            tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', cycleShifted[:])
-                            tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', redCycleShifted[:])
-                    else: 
-                        # for all cycles of consecutive trials in trial set 
-                        loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
-                        registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
-                        registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
-                        mCycle = np.nanmean(registeredCycle, axis=0)
-                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', registeredCycle[:])
-                        tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
-                trialInSetCount += 1
+                    trialInSetCount += 1
+                else:
+                    print(f'Trial {trialCount} Already Registered')
             else:
-                print(f'Trial {trialCount} Already Registered')
+                print(f'{trial} \n failed QC')
             trialCount+=1
 
 def make_annotation_tif(mIM, gcampSlice, wgaSlice, threshold, annTifFN, resolution):
@@ -877,3 +883,5 @@ def generate_physiology_figures(expmtPath, sumDict=None, dataDict=None):
 
 
 
+
+# %%
