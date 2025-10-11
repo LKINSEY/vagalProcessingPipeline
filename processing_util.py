@@ -586,82 +586,57 @@ def extract_metadata(expmt):
     return metaData
 
 
-def trialize_physiology(physDict, metaDataDict):
-    trig = physDict['Trial_Trigger_raw']
-    fs_physio = float(physDict['Trial_Trigger_fs'])
-    highs = np.where(trig>2, 1, 0)
-    lows = np.where(trig<2, 1, 0)
-    highEdges = (np.diff(highs)>=1).astype(int)
-    lowEdges = (np.diff(lows)>=1).astype(int)
-    risingEdges = np.where(highEdges)[0]
-    fallingEdges = np.where(lowEdges)[0]
-
-    trialScanDeltas = []
-    for t in metaDataDict['TSeries']:
-        nCycles = metaDataDict['TSeries'][t]['nCycles']
-        if nCycles>1:
-            for cycle in range(nCycles):
-                cycleMeta = metaDataDict['TSeries'][t][f'cycle_{cycle}_Framemeta']
-                tf = cycleMeta['frameTime_abs'][-1]
-                ti = cycleMeta['frameTime_abs'][0]
-                trialScanDeltas.append(((tf-ti)*fs_physio).astype(int))
-        else:
-            cycleMeta = metaDataDict['TSeries'][t]['cycle_0_Framemeta']
-            tf = cycleMeta['frameTime_abs'][-1]
-            ti = cycleMeta['frameTime_abs'][0]
-            trialScanDeltas.append(((tf-ti)*fs_physio).astype(int))
-    trialScanDeltas = np.array(trialScanDeltas)
-
-    scanLengths = fallingEdges - risingEdges
-
-    tcdelta = 0
-    tStartTicks = np.zeros((len(trialScanDeltas),))
-    tStopTicks = np.zeros((len(trialScanDeltas),))
-    for sIDX in range(len(scanLengths)):
-        if tcdelta < len(trialScanDeltas):
-            err = abs(scanLengths[sIDX] - trialScanDeltas[tcdelta])
-            if err < 1000:
-                tStartTicks[tcdelta] = risingEdges[sIDX].astype(int)
-                tStopTicks[tcdelta] = fallingEdges[sIDX].astype(int)
-                tcdelta +=1
-        else:
-            break
-
-
+def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
+    '''
+        Inputs: 
+            physDict (dict): Raw Physiology Data - includes string in '%Y-%m-%d %H:%M:%S.%f' datetime format. Serves as reference t=0.
+            metaDataDict (dict): MetaData Dictionary that has datetimes of every trial that is to be synchronized. 
+        Outputs:
+            trializedData (dict): Physiology data sliced into query-able trials
+                *NOTE* Can output just {'error': 'reason for error'} if something goes wrong
+    '''
+    t0DtStr = physDict['recordStart'] # String in '%Y-%m-%d %H:%M:%S.%f' datetime format. Serves as reference t=0.
+    if isinstance(t0DtStr, str):
+        t0Dt = datetime.strptime(t0DtStr, '%Y-%m-%d %H:%M:%S.%f')
+        t0 = t0Dt.hour * 3600 + t0Dt.minute * 60 + t0Dt.second + t0Dt.microsecond / 1e6
+    else:
+        return {'error': 'Physiology Does Not Have Datetime String'}
 
     trializedData = {}
-
-    tScan = 0
-    for t in metaDataDict['TSeries'].keys():
-        trializedMeasurements = {}
+    ###
+    #c'est stupide, je sais. J'ameliorerai le code a l'avenir.
+    measurements = [ 'Spirometer_raw',
+                    'ECG_raw',
+                    'ECG_Rate_raw',
+                    'Air_Flow_Filter_(20Hz)_raw',
+                    'TV_raw',
+                    'Breath_Rate_raw']
+    ###
+    for t in metaDataDict['TSeries']:
         nCycles = metaDataDict['TSeries'][t]['nCycles']
-
-        ###
-        #c'est stupide, je sais. J'ameliorerai le code a l'avenir.
-        measurements = [ 'Spirometer_raw',
-                        'ECG_raw',
-                        'ECG_Rate_raw',
-                        'Air_Flow_Filter_(20Hz)_raw',
-                        'TV_raw',
-                        'Breath_Rate_raw']
-        ###
-
-        #adding buffer to allow for visualization of trial bounderies
-        if nCycles>1:
-           startTick =  int(tStartTicks[tScan] - fs_physio)
-           stopTick = int(tStopTicks[tScan+nCycles-1] + fs_physio)
-           tScan += nCycles
+        ctDtStr = metaDataDict['TSeries'][t][f'cycle_0_time'][:13]
+        if isinstance(ctDtStr, str):
+            ctDt = datetime.strptime(ctDtStr, '%H:%M:%S.%f')
+            tc = ctDt.hour * 3600 + ctDt.minute * 60 + ctDt.second + ctDt.microsecond / 1e6
         else:
-            startTick = int(tStartTicks[tScan] - fs_physio)
-            stopTick = int(tStopTicks[tScan] + fs_physio)
-            tScan +=1
+            return {'error': f'MetaData did not have Datetime String for trial {t} cycle 0'}        
+        
+        for cycle in range(nCycles):
+            ct_f= metaDataDict['TSeries'][t][f'cycle_{cycle}_Framemeta']['frameTime_abs'][-1]
+            if isinstance(ct_f, float):
+                tcf = int(ct_f*fs_physio)
+            else:
+                return {'error': f'Improper Storage of Trial Frame Meta trial {t} cycle {cycle}'}
 
-        for dataType in measurements:
-            trializedTrace = physDict[dataType][startTick:stopTick]
-            trializedMeasurements[dataType] = trializedTrace
-        trializedMeasurements['Trial_Trig'] = highs[startTick:stopTick]
-        trializedData[t] = trializedMeasurements
+        trialStartTick = int(((tc-t0)*fs_physio))
+        trialEndTick = int(trialStartTick + tcf) 
+        physiologyData = {}
 
+        for m in measurements:
+            physiologyData[m] = physDict[m][int(trialStartTick- fs_physio):int(trialEndTick+ fs_physio)]#including padding
+        physiologyData['Trial_Trig'] = highs[int(trialStartTick- fs_physio):int(trialEndTick+ fs_physio)]#including padding
+        trializedData[t] = physiologyData
+    
     return trializedData
 
 def find_stim_tick_physio(duration, trialBreathingRate, fs_physio):
