@@ -592,6 +592,7 @@ def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
         Outputs:
             trializedData (dict): Physiology data sliced into query-able trials
                 *NOTE* Can output just {'error': 'reason for error'} if something goes wrong
+                - includes sync validation data
     '''
     t0DtStr = physDict['recordStart'] # String in '%Y-%m-%d %H:%M:%S.%f' datetime format. Serves as reference t=0.
     if isinstance(t0DtStr, str):
@@ -635,6 +636,7 @@ def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
         for m in measurements:
             physiologyData[m] = physDict[m][int(trialStartTick- fs_physio):int(trialEndTick+ fs_physio)]#including padding
         physiologyData['Trial_Trig'] = highs[int(trialStartTick- fs_physio):int(trialEndTick+ fs_physio)]#including padding
+        physiologyData['validation'] = (trialStartTick, trialEndTick)
         trializedData[t] = physiologyData
     
     return trializedData
