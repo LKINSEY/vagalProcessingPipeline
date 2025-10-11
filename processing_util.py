@@ -423,7 +423,6 @@ def register_tSeries_rigid(rawData, regParams, template = None):
     return moco_results[:]
 
 
-
 #Plotting and summary functions
 
 def extract_metadata(expmt):
@@ -585,7 +584,6 @@ def extract_metadata(expmt):
     metaData['TSeries'] = tSeriesMeta
     return metaData
 
-
 def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
     '''
         Inputs: 
@@ -601,9 +599,9 @@ def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
         t0 = t0Dt.hour * 3600 + t0Dt.minute * 60 + t0Dt.second + t0Dt.microsecond / 1e6
     else:
         return {'error': 'Physiology Does Not Have Datetime String'}
-
+    trig = physDict['Trial_Trigger_raw']
     fs_physio = float(physDict['Trial_Trigger_fs'])
-
+    highs = np.where(trig>2, 1, 0)
     trializedData = {}
     ###
     #c'est stupide, je sais. J'ameliorerai le code a l'avenir.
