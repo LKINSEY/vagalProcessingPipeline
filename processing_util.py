@@ -12,10 +12,10 @@ import masknmf
 from skimage.transform import resize
 from scipy.ndimage import center_of_mass
 from datetime import datetime
+import adi
 
 #Additional Physiology Function
-def include_comments(physioPath, physDict, recordNum):
-    import adi
+def include_comments(physioPath, recordNum):
     expmtFile = adi.read_file(physioPath)
     comments = expmtFile.records[recordNum].comments
     commentDict = {}
@@ -26,9 +26,12 @@ def include_comments(physioPath, physDict, recordNum):
             'x': comment.tick_position
         }
         commentNumber += 1
-    physDict['comments']=commentDict
-    return physDict
+    return commentDict
 
+def register_physio_startTime(physioPath, recordNum):
+    expmtFile = adi.read_file(physioPath)
+    return expmtFile.records[recordNum].record_time.trig_datestr
+   
 #registration and processing functions
 def define_unique_fovs(metaData):
     zTolerance = 6
@@ -761,7 +764,7 @@ def sync_physiology(physioDict, dataDict, metaData):
 def generate_physiology_figures(expmtPath, sumDict=None, dataDict=None):
 
     #Set Up Save Dir
-    figureDR = Path(expmtPath)/'figures'
+    figureDR = Path(expmtPath)/'figures/byTrial'
     figureDR.mkdir(parents=True, exist_ok=True)
 
     #"split" param
@@ -881,7 +884,66 @@ def generate_physiology_figures(expmtPath, sumDict=None, dataDict=None):
             plt.savefig(pdfSummary, format='pdf')
         pdfSummary.close() 
 
+def compare_all_rois(expmtPath, metaData, expmtSummary, dataDict):
+    
+    print('all rois')
+    
+    figureDR = Path(expmtPath)/'figures'/'allROIs'    
+    figureDR.mkdir(parents=True, exist_ok=True)
+    
+    
+    
+    fovList = define_unique_fovs(metaData)
+    uniqueFOVs = np.unique(fovList)
+    trialList = glob.glob(expmtPath+'/TSeries*')
+    trialIDs = np.arange(len(trialList))
+    for fov in uniqueFOVs:
+        trialsInSet = trialIDs[fovList==fov]
+        saveFN = str(figureDR / f'fov_{fov}.pdf')
+        pdfSummary = PdfPages(saveFN)
 
+        for t in trialsInSet:
+            if metaData['TSeries'][t]['QC'] == 1:
 
+                condition = metaData['TSeries'][t]['type']
+                duration = metaData['TSeries'][t]['duration']
+                magnitude = metaData['TSeries'][t]['magnitude']
+                units = metaData['TSeries'][t]['units']
+
+                
+                
+
+                rois = expmtSummary[t]['dFF']
+                traceX = expmtSummary[t]['traceX']
+                physioX = expmtSummary[t]['physioX']
+                tidalVolume = expmtSummary[t]['physio']['TV_raw']
+                c = dataDict[t][f'T{t}_roiFeatures']['gCaMP_only_rois']
+                gcampROIs = dataDict[t][f'T{t}_roiFeatures']['gCaMP_only_rois']
+                colabeledROIs = dataDict[t][f'T{t}_roiFeatures']['colabeled_rois']
+                # roiList = np.unique(np.concat([colabeledROIs, gcampROIs])) #makes same order as roi array organized
+
+                
+                
+                fig, ax = plt.subplots(3,1, sharex=True)
+                
+                ax[0].imshow(
+                    rois.T[0:len(colabeledROIs)], 
+                    aspect = 'auto', 
+                    extent=[traceX[0], traceX[-1], 0, len(colabeledROIs)])
+                ax[0].set_ylabel('WGA+')
+                
+                ax[1].imshow(
+                    rois.T[len(colabeledROIs):], 
+                    aspect = 'auto', 
+                    extent=[traceX[0], traceX[-1], 0, len(gcampROIs)])
+                ax[1].set_ylabel('WGA-')
+                
+                ax[2].plot(physioX, tidalVolume)
+                ax[2].set_ylabel('Tidal Volume')
+                fig.suptitle(f'Trial {t} - {condition}')
+                plt.savefig(pdfSummary, format='pdf')
+            else:
+                print('TRIAL QCed')
+        pdfSummary.close()
 
 # %%
