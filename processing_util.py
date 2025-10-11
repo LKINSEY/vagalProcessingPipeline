@@ -602,6 +602,8 @@ def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
     else:
         return {'error': 'Physiology Does Not Have Datetime String'}
 
+    fs_physio = float(physDict['Trial_Trigger_fs'])
+
     trializedData = {}
     ###
     #c'est stupide, je sais. J'ameliorerai le code a l'avenir.
