@@ -573,7 +573,10 @@ def extract_metadata(expmt):
                         frameTime_rel[fIDX] = frame.get('relativeTime')
                         frameTime_abs[fIDX] = frame.get('absoluteTime')
                 #take framerate from last frame
-                frameMeta['fs'] = frame[3][0].get('value') #the only hardcoded child in this entire thing... Im just lazy...
+                try:
+                    frameMeta['fs'] = frame[3][0].get('value') #the only hardcoded child in this entire thing... Im just lazy...
+                except IndexError:
+                    frameMeta['fs'] = '0.2503872' #assumption is only hardcorded for now...
                 frameMeta['frameTime_rel'] = frameTime_rel
                 frameMeta['frameTime_abs'] = frameTime_abs
                 trialMeta[f'cycle_{cycleCount}_Framemeta'] = frameMeta
