@@ -603,9 +603,16 @@ def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
         t0 = t0Dt.hour * 3600 + t0Dt.minute * 60 + t0Dt.second + t0Dt.microsecond / 1e6
     else:
         return {'error': 'Physiology Does Not Have Datetime String'}
+    
+    
     trig = physDict['Trial_Trigger_raw']
     fs_physio = float(physDict['Trial_Trigger_fs'])
     highs = np.where(trig>2, 1, 0)
+    highEdges = np.where(np.diff(highs))[0]
+    # print(highEdges[-10:])
+    lows = np.where(trig<2, 1, 0)
+    lowEdges = np.where(np.diff(lows))[0]
+
     trializedData = {}
     ###
     #c'est stupide, je sais. J'ameliorerai le code a l'avenir.
@@ -632,7 +639,10 @@ def trialize_physiology(physDict: dict, metaDataDict: dict) -> dict:
             else:
                 return {'error': f'Improper Storage of Trial Frame Meta trial {t} cycle {cycle}'}
 
-        trialStartTick = int(((tc-t0)*fs_physio))
+        metaTrialStartTick = int(((tc-t0)*fs_physio))
+        nearestTickSearch = abs(highEdges - metaTrialStartTick)
+        trialStartTick = highEdges[np.argmin(nearestTickSearch)]
+
         trialEndTick = int(trialStartTick + tcf) 
         physiologyData = {}
 
