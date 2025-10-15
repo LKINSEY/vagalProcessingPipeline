@@ -573,10 +573,7 @@ def extract_metadata(expmt):
                         frameTime_rel[fIDX] = frame.get('relativeTime')
                         frameTime_abs[fIDX] = frame.get('absoluteTime')
                 #take framerate from last frame
-                try:
-                    frameMeta['fs'] = frame[3][0].get('value') #the only hardcoded child in this entire thing... Im just lazy...
-                except IndexError:
-                    frameMeta['fs'] = '0.2503872' #assumption is only hardcorded for now...
+                frameMeta['fs'] = frame[3][0].get('value') #the only hardcoded child in this entire thing... Im just lazy...
                 frameMeta['frameTime_rel'] = frameTime_rel
                 frameMeta['frameTime_abs'] = frameTime_abs
                 trialMeta[f'cycle_{cycleCount}_Framemeta'] = frameMeta
@@ -704,20 +701,25 @@ def sync_physiology(physioDict, dataDict, metaData):
         trialDict['Fraw'] = Fraw
         trialDict['traceX'] = traceX
         trialType = metaData['TSeries'][tID]['type']
-        if 'baseline' in trialType:
+        try:
             fps = (1/float(metaData['TSeries'][tID]['cycle_0_Framemeta']['fs']))
+        except:
+            fps = int(4)
+
+        if 'baseline' in trialType:
+            
             baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
             f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
             trialDict['stimIDX'] = np.nan
 
         #will include 'gas' criteria here soon
         elif 'gas' in trialType:
-            fps = (1/float(metaData['TSeries'][tID]['cycle_0_Framemeta']['fs']))
+            
             baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
             f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
             trialDict['stimIDX'] = np.nan
         elif 'clamp' in trialType: #temp
-            fps = (1/float(metaData['TSeries'][tID]['cycle_0_Framemeta']['fs']))
+            
             baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
             f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
             trialDict['stimIDX'] = np.nan
@@ -725,12 +727,12 @@ def sync_physiology(physioDict, dataDict, metaData):
             duration = metaData['TSeries'][tID]['duration']
             stimTick = find_stim_tick_physio(duration, trializedPhysio[tID]['Breath_Rate_raw'], fs_physio)
             stimIDX = np.argmin(abs(traceX - stimTick))
-            fps = (1/float(metaData['TSeries'][tID]['cycle_0_Framemeta']['fs']))
+            
             baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
             f0 = np.nanmean(Fraw[(stimIDX-baselinePeriod):stimIDX, :], axis=0)
             trialDict['stimIDX'] = stimIDX
         else: #temp
-            fps = (1/float(metaData['TSeries'][tID]['cycle_0_Framemeta']['fs']))
+            
             baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
             f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
             trialDict['stimIDX'] = np.nan
