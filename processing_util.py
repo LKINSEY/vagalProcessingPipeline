@@ -299,8 +299,10 @@ def register_2ch_trials(expmtPath, metaData, regParams):
                             annTiffFN = str(annTiffDr / f'cellCounting_T{trialCount-1}_slice{fov}.tif')
                             if cycleIDX == 0:
                                 #first cycle of first trial in set -- everything will be aligned to first cycle of first trial in set, so only do this once
-                                registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = None)
-                                registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = None)
+                                # registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = None)
+                                # registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = None)
+                                registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = None)
+                                registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = None)
                                 mTemplate = np.nanmean(registeredCycle, axis=0)
                                 mRedIM = np.nanmean(registeredRed, axis=0)  
                                 _ = make_annotation_tif(mTemplate, mTemplate, mRedIM, 5, annTiffFN, mTemplate.shape)
@@ -308,8 +310,10 @@ def register_2ch_trials(expmtPath, metaData, regParams):
                                 tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
                             else:
                                 #consecutive cycle of first trial in set (if it exists)
-                                registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
-                                registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
+                                # registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                                # registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
+                                registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                                registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = mRedIM)#register all to initial registration
                                 mCycle = np.nanmean(registeredCycle, axis=0)
                                 cycleShifted = np.roll(registeredCycle, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
                                 redCycleShifted = np.roll(registeredRed, shift=fft_rigid_cycle_moco_shifts(mCycle, mTemplate), axis=(1,2))
@@ -318,8 +322,10 @@ def register_2ch_trials(expmtPath, metaData, regParams):
                         else: 
                             # for all cycles of consecutive trials in trial set 
                             loadedCh2Tiff = tif.imread(ch2Tiffs[cycleIDX])
-                            registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
-                            registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
+                            # registeredCycle = register_tSeries_rigid(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                            # registeredRed = register_tSeries_rigid(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
+                            registeredCycle = register_tSeries(loadedCh2Tiff, regParams, template = mTemplate) #register all to initial registration
+                            registeredRed = register_tSeries(loadedCh1Tiff, regParams, template = mRedIM) #register all to initial registration
                             mCycle = np.nanmean(registeredCycle, axis=0)
                             tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch2.tif', registeredCycle[:])
                             tif.imwrite(trial+f'/rT{trialInSetCount}_C{cycleIDX+1}_ch1.tif', registeredRed[:])
@@ -719,36 +725,36 @@ def sync_physiology(physioDict, dataDict, metaData):
         except:
             fps = int(4)
 
-        if 'baseline' in trialType:
+        # if 'baseline' in trialType:
             
-            baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
-            f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
-            trialDict['stimIDX'] = np.nan
+        #     baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+        #     f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
+        #     trialDict['stimIDX'] = np.nan
 
         #will include 'gas' criteria here soon
-        elif 'gas' in trialType:
+        # elif 'gas' in trialType:
             
-            baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
-            f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
-            trialDict['stimIDX'] = np.nan
-        elif 'clamp' in trialType: #temp
+        baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+        f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
+        trialDict['stimIDX'] = np.nan
+        # elif 'clamp' in trialType: #temp
             
-            baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
-            f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
-            trialDict['stimIDX'] = np.nan
-        elif 'insp' in trialType or 'exsp' in trialType:
-            duration = metaData['TSeries'][tID]['duration']
-            stimTick = find_stim_tick_physio(duration, trializedPhysio[tID]['Breath_Rate_raw'], fs_physio)
-            stimIDX = np.argmin(abs(traceX - stimTick))
+        #     baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+        #     f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
+        #     trialDict['stimIDX'] = np.nan
+        # elif 'insp' in trialType or 'exsp' in trialType:
+        #     duration = metaData['TSeries'][tID]['duration']
+        #     stimTick = find_stim_tick_physio(duration, trializedPhysio[tID]['Breath_Rate_raw'], fs_physio)
+        #     stimIDX = np.argmin(abs(traceX - stimTick))
             
-            baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
-            f0 = np.nanmean(Fraw[(stimIDX-baselinePeriod):stimIDX, :], axis=0)
-            trialDict['stimIDX'] = stimIDX
-        else: #temp
+        #     baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+        #     f0 = np.nanmean(Fraw[(stimIDX-baselinePeriod):stimIDX, :], axis=0)
+        #     trialDict['stimIDX'] = stimIDX
+        # else: #temp
             
-            baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
-            f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
-            trialDict['stimIDX'] = np.nan
+        #     baselinePeriod = round(fps * 3) #hardcoded ~3 seconds before stim is baseline
+        #     f0 = np.nanmean(Fraw[:baselinePeriod, :], axis=0) #baseline is first 3 seconds of recording on first epoch
+        #     trialDict['stimIDX'] = np.nan
         dFF = (Fraw - f0) / f0
         trialDict['dFF'] = dFF
         trialDict['physio'] = trializedPhysio[tID]
@@ -761,6 +767,9 @@ def generate_physiology_figures(expmtPath, sumDict=None, dataDict=None):
     #Set Up Save Dir
     figureDR = Path(expmtPath)/'figures/byTrial'
     figureDR.mkdir(parents=True, exist_ok=True)
+
+    #voltage recording
+    voltRecording = glob.glob(expmtPath + '/*VoltageRecording*.csv')[0]
 
     #"split" param
     step = 4
@@ -832,9 +841,17 @@ def generate_physiology_figures(expmtPath, sumDict=None, dataDict=None):
             ventFilt_plot = fig.add_subplot(gs[3,0], sharex=dFF_plot)
             ventFilt_plot.plot(physioX, physioY_traces['Spirometer_raw'])
             ventFilt_plot.set_title('Filtered Vent Signal')
-            TV_plot = fig.add_subplot(gs[2,0], sharex=dFF_plot)
-            TV_plot.plot(physioX, physioY_traces['TV_raw'])
-            TV_plot.set_title('Tidal Volume')
+            if 'cuff' in condition:
+                voltageRecording =pd.read_csv(voltRecording)
+                cuffTTL = voltageRecording.iloc(1)[3].values[::10] #b/c recorded at 10k hz
+                cuffX = np.arange(0, len(cuffTTL))
+                cuffPlot = fig.add_subplot(gs[2,0], sharex=dFF_plot)
+                cuffPlot.plot(cuffX, cuffTTL)
+                cuffPlot.set_title('Tidal Volume')
+            else:
+                TV_plot = fig.add_subplot(gs[2,0], sharex=dFF_plot)
+                TV_plot.plot(physioX, physioY_traces['TV_raw'])
+                TV_plot.set_title('Tidal Volume')
             ECGrate_plot = fig.add_subplot(gs[1,0], sharex=dFF_plot)
             ECGrate_plot.plot(physioX, physioY_traces['ECG_Rate_raw'])
             ECGrate_plot.set_title('Heart Rate')
